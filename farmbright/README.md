@@ -1,8 +1,8 @@
-# FarmBright
+# Flock
 
-FarmBright is a full-stack farm management web application for home and small-scale farmers. It is designed around user-defined farm structures: each farmer configures their own animal classes, breeds, flocks, feed systems, and operational workflows through guided onboarding.
+Flock is a full-stack farm management web application for home and small-scale farmers. It is designed around user-defined farm structures: each farmer configures their own animal classes, breeds, flocks, feed systems, and operational workflows through guided onboarding.
 
-FarmBright v1.0 keeps feed inventory as a live ledger, derives financial views from operational data, and supports USB scale integration for DYMO S400 HID scales.
+Flock v1.0 keeps feed inventory as a live ledger, derives financial views from operational data, and supports USB scale integration for DYMO S400 HID scales.
 
 ## Local Setup
 
@@ -103,7 +103,7 @@ When the DYMO S400 is not available, `scale` returns `not_detected`.
 
 ## DYMO S400 Scale Setup
 
-FarmBright uses the Python `hidapi` package to detect DYMO USB HID scales.
+Flock uses the Python `hidapi` package to detect DYMO USB HID scales.
 
 1. Connect the DYMO S400 to the machine running the Flask backend.
 2. Confirm the operating system can see the USB HID device.
@@ -119,4 +119,4 @@ Local development uses the `db` service in `docker-compose.yml`. Production shou
 
 ---
 
-FarmBright v1.0 - Built for the everyday farmer
+Flock v1.0 - Built for the everyday farmer

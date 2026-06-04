@@ -1,1 +1,1 @@
-"""Blueprint package for FarmBright API routes."""
+"""Blueprint package for Flock API routes."""

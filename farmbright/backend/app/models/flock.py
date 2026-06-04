@@ -29,3 +29,4 @@ class Flock(db.Model):
         foreign_keys="BreedingLog.flock_id",
     )
     financial_records = db.relationship("FinancialRecord", back_populates="flock", cascade="all, delete-orphan")
+    revenues = db.relationship("Revenue", back_populates="flock", cascade="all, delete-orphan")

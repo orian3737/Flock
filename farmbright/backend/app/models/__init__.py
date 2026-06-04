@@ -10,6 +10,7 @@ from app.models.financial_record import FinancialRecord
 from app.models.flock import Flock
 from app.models.inventory_transaction import InventoryTransaction
 from app.models.production_log import ProductionLog
+from app.models.revenue import Revenue
 from app.models.user import User
 
 
@@ -26,5 +27,6 @@ __all__ = [
     "Flock",
     "InventoryTransaction",
     "ProductionLog",
+    "Revenue",
     "User",
 ]

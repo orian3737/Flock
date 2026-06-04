@@ -1,1 +1,1 @@
-"""Business logic services for FarmBright."""
+"""Business logic services for Flock."""

@@ -1,16 +1,16 @@
 services:
   db:
     image: postgres:16
-    container_name: farmbright-db
+    container_name: Flock-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: farmbright
-      POSTGRES_USER: farmbright
-      POSTGRES_PASSWORD: farmbright
+      POSTGRES_DB: Flock
+      POSTGRES_USER: Flock
+      POSTGRES_PASSWORD: Flock
     ports:
       - "5432:5432"
     volumes:
-      - farmbright_postgres_data:/var/lib/postgresql/data
+      - Flock_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  farmbright_postgres_data:
+  Flock_postgres_data:

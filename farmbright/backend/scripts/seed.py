@@ -24,13 +24,13 @@ def seed():
     app = create_app(os.getenv("FLASK_ENV", "development"))
 
     with app.app_context():
-        existing_user = User.query.filter_by(supabase_uid="seed-farmbright-user").first()
+        existing_user = User.query.filter_by(supabase_uid="seed-Flock-user").first()
         if existing_user:
             print("Seed data already exists.")
             return
 
         user = User(
-            supabase_uid="seed-farmbright-user",
+            supabase_uid="seed-Flock-user",
             email="farmer@example.com",
             farm_name="Everyday Acres",
         )

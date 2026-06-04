@@ -15,3 +15,4 @@ class User(db.Model):
     animal_classes = db.relationship("AnimalClass", back_populates="user", cascade="all, delete-orphan")
     feed_types = db.relationship("FeedType", back_populates="user", cascade="all, delete-orphan")
     alerts = db.relationship("Alert", back_populates="user", cascade="all, delete-orphan")
+    revenues = db.relationship("Revenue", back_populates="user", cascade="all, delete-orphan")

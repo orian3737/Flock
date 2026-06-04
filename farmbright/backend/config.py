@@ -10,7 +10,7 @@ class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        "postgresql://farmbright:farmbright@localhost:5432/farmbright",
+        "postgresql://Flock:Flock@localhost:5432/Flock",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -31,7 +31,7 @@ class TestingConfig(BaseConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "TEST_DATABASE_URL",
-        "postgresql://farmbright:farmbright@localhost:5432/farmbright_test",
+        "postgresql://Flock:Flock@localhost:5432/Flock_test",
     )
 
 
