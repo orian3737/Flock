@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: farmbright-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: farmbright
+      POSTGRES_USER: farmbright
+      POSTGRES_PASSWORD: farmbright
+    ports:
+      - "5432:5432"
+    volumes:
+      - farmbright_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  farmbright_postgres_data:

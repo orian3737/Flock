@@ -1,0 +1,12 @@
+flask
+flask-sqlalchemy
+flask-migrate
+flask-login
+flask-mail
+psycopg2-binary
+python-dotenv
+supabase
+hidapi
+reportlab
+openpyxl
+APScheduler
