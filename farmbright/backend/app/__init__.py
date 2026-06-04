@@ -14,6 +14,9 @@ def create_app(config_name="development"):
     login_manager.init_app(app)
     mail.init_app(app)
 
+    with app.app_context():
+        from app import models  # noqa: F401
+
     app.register_blueprint(health_bp)
 
     return app
