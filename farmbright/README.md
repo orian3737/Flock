@@ -120,3 +120,4 @@ Local development uses the `db` service in `docker-compose.yml`. Production shou
 ---
 
 Flock v1.0 - Built for the everyday farmer
+                                             Built by Ryan Murzyn
