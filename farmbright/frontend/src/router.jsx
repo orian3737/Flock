@@ -15,29 +15,34 @@ import Export from "./pages/reports/Export.jsx";
 import FarmSetup from "./pages/settings/FarmSetup.jsx";
 import Settings from "./pages/settings/Settings.jsx";
 
-export const router = createBrowserRouter([
-  { path: "/login", element: <Login /> },
-  { path: "/onboarding", element: <OnboardingWizard /> },
+export const router = createBrowserRouter(
+  [
+    { path: "/login", element: <Login /> },
+    { path: "/onboarding", element: <OnboardingWizard /> },
+    {
+      path: "/",
+      element: <ProtectedRoute />,
+      children: [
+        {
+          path: "",
+          element: <AppLayout />,
+          children: [
+            { index: true, element: <Navigate to="/dashboard" replace /> },
+            { path: "dashboard", element: <Dashboard /> },
+            { path: "flocks", element: <FlockList /> },
+            { path: "flocks/:id", element: <FlockDetail /> },
+            { path: "scale-house", element: <ScaleHouse /> },
+            { path: "inventory", element: <Inventory /> },
+            { path: "financials", element: <Financials /> },
+            { path: "export", element: <Export /> },
+            { path: "farm-setup", element: <FarmSetup /> },
+            { path: "settings", element: <Settings /> },
+          ],
+        },
+      ],
+    },
+  ],
   {
-    path: "/",
-    element: <ProtectedRoute />,
-    children: [
-      {
-        path: "",
-        element: <AppLayout />,
-        children: [
-          { index: true, element: <Navigate to="/dashboard" replace /> },
-          { path: "dashboard", element: <Dashboard /> },
-          { path: "flocks", element: <FlockList /> },
-          { path: "flocks/:id", element: <FlockDetail /> },
-          { path: "scale-house", element: <ScaleHouse /> },
-          { path: "inventory", element: <Inventory /> },
-          { path: "financials", element: <Financials /> },
-          { path: "export", element: <Export /> },
-          { path: "farm-setup", element: <FarmSetup /> },
-          { path: "settings", element: <Settings /> },
-        ],
-      },
-    ],
-  },
-]);
+    basename: import.meta.env.BASE_URL,
+  }
+);
