@@ -117,6 +117,24 @@ If the scale is connected but not detected, unplug and reconnect it, check the U
 
 Local development uses the `db` service in `docker-compose.yml`. Production should point `DATABASE_URL` at Supabase PostgreSQL and configure Supabase Auth using `SUPABASE_URL` and `SUPABASE_KEY`.
 
+### GitHub Pages Frontend
+
+The React frontend can be hosted for free on GitHub Pages from the `orian3737/flock` repository. The workflow lives at `.github/workflows/deploy-frontend.yml` and builds `farmbright/frontend`.
+
+Required GitHub repository secrets:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_KEY`
+- `VITE_API_BASE_URL`
+
+The workflow sets `VITE_BASE_PATH=/flock/`, so the published frontend URL is expected to be:
+
+```text
+https://orian3737.github.io/flock/
+```
+
+GitHub Pages only hosts the static React build. The Flask backend still needs a separate host, and `VITE_API_BASE_URL` must point to that hosted backend URL.
+
 ---
 
 Flock v1.0 - Built for the everyday farmer
