@@ -4,11 +4,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import AnimalClass, Breed, FeedAssignment, FeedType, Flock
+from app.utils.cors import allowed_origins
 from app.utils.jwt_middleware import require_auth
 
 
 onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
-CORS(onboarding_bp, origins=["http://localhost:5173"])
+CORS(onboarding_bp, origins=allowed_origins())
 
 
 def _payload():

@@ -11,11 +11,12 @@ from app.services.financial_service import (
     get_flock_pl,
     get_user_flock_pl,
 )
+from app.utils.cors import allowed_origins
 from app.utils.jwt_middleware import require_auth
 
 
 financials_bp = Blueprint("financials", __name__, url_prefix="/api/financials")
-CORS(financials_bp, origins=["http://localhost:5173"])
+CORS(financials_bp, origins=allowed_origins())
 
 
 @financials_bp.get("/summary/<int:user_id>")

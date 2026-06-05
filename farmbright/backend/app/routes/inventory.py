@@ -5,11 +5,12 @@ from flask_cors import CORS
 
 from app.extensions import db
 from app.models import Alert, FeedType, InventoryTransaction
+from app.utils.cors import allowed_origins
 from app.utils.jwt_middleware import require_auth
 
 
 inventory_bp = Blueprint("inventory", __name__, url_prefix="/api/inventory")
-CORS(inventory_bp, origins=["http://localhost:5173"])
+CORS(inventory_bp, origins=allowed_origins())
 
 
 @inventory_bp.get("/<int:user_id>")

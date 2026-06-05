@@ -15,10 +15,11 @@ from app.models import (
     Revenue,
     User,
 )
+from app.utils.cors import allowed_origins
 
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")
-CORS(dashboard_bp, origins=["http://localhost:5173"])
+CORS(dashboard_bp, origins=allowed_origins())
 
 
 @dashboard_bp.get("/overview/<int:user_id>")

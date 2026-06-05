@@ -4,11 +4,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import User
+from app.utils.cors import allowed_origins
 from app.utils.jwt_middleware import require_auth
 
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
-CORS(users_bp, origins=["http://localhost:5173"])
+CORS(users_bp, origins=allowed_origins())
 
 
 def _user_json(user):

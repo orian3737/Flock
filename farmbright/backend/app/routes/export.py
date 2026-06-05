@@ -4,10 +4,11 @@ from flask import Blueprint, Response, jsonify, request, send_file
 from flask_cors import CORS
 
 from app.services.export_service import generate_csv, generate_pdf, generate_xlsx, preview_rows
+from app.utils.cors import allowed_origins
 
 
 export_bp = Blueprint("export", __name__, url_prefix="/api/export")
-CORS(export_bp, origins=["http://localhost:5173"])
+CORS(export_bp, origins=allowed_origins())
 
 
 @export_bp.post("/generate")

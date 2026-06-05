@@ -19,11 +19,12 @@ from app.models import (
     User,
 )
 from app.services.scale_service import scale
+from app.utils.cors import allowed_origins
 from app.utils.jwt_middleware import require_auth
 
 
 scale_house_bp = Blueprint("scale_house", __name__, url_prefix="/api/scale-house")
-CORS(scale_house_bp, origins=["http://localhost:5173"])
+CORS(scale_house_bp, origins=allowed_origins())
 
 
 @scale_house_bp.get("/scale/status")

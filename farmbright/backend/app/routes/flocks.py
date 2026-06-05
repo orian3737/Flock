@@ -6,11 +6,12 @@ from sqlalchemy import func
 
 from app.extensions import db
 from app.models import AnimalClass, CasualtyLog, FeedingEvent, Flock, ProductionLog, User
+from app.utils.cors import allowed_origins
 from app.utils.jwt_middleware import require_auth
 
 
 flocks_bp = Blueprint("flocks", __name__, url_prefix="/api/flocks")
-CORS(flocks_bp, origins=["http://localhost:5173"])
+CORS(flocks_bp, origins=allowed_origins())
 
 
 @flocks_bp.get("/<int:user_id>")
