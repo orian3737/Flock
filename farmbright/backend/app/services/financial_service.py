@@ -149,3 +149,49 @@ def current_month_range():
     else:
         next_month = today.replace(month=today.month + 1, day=1)
     return start_date, next_month - timedelta(days=1)
+
+
+def aggregate_daily_financials(app):
+    """Create or update yesterday's FinancialRecord rows for active flocks."""
+    with app.app_context():
+        from app.models.financial_record import FinancialRecord
+
+        yesterday = date.today() - timedelta(days=1)
+        flock_ids = [
+            row[0]
+            for row in db.session.query(FeedingEvent.flock_id)
+            .filter(FeedingEvent.date == yesterday)
+            .distinct()
+            .all()
+        ]
+
+        for flock_id in flock_ids:
+            events = FeedingEvent.query.filter_by(flock_id=flock_id, date=yesterday).all()
+            feed_cost = sum(event.cost_total for event in events)
+            revenue = (
+                db.session.query(db.func.coalesce(db.func.sum(Revenue.amount), 0))
+                .filter(Revenue.flock_id == flock_id, Revenue.date == yesterday)
+                .scalar()
+                or 0.0
+            )
+
+            flock = db.session.get(Flock, flock_id)
+            headcount = flock.current_headcount if flock else 0
+            net_pl = revenue - feed_cost
+            cost_per_bird = feed_cost / headcount if headcount and headcount > 0 else 0.0
+
+            record = FinancialRecord.query.filter_by(flock_id=flock_id, date=yesterday).first()
+            if not record:
+                record = FinancialRecord(
+                    flock_id=flock_id,
+                    date=yesterday,
+                    revenue_source="other",
+                )
+                db.session.add(record)
+
+            record.total_feed_cost = feed_cost
+            record.total_revenue = revenue
+            record.net_pl = net_pl
+            record.cost_per_bird = cost_per_bird
+
+        db.session.commit()

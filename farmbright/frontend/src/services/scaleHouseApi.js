@@ -21,7 +21,8 @@ export const getScaleStatus = () =>
   api.get("/api/scale-house/scale/status").then((response) => response.data);
 
 export const openScaleStream = (onReading, onError) => {
-  const eventSource = new EventSource("http://localhost:5000/api/scale-house/scale/stream");
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+  const eventSource = new EventSource(`${baseUrl}/api/scale-house/scale/stream`);
   eventSource.onmessage = (event) => onReading(JSON.parse(event.data));
   eventSource.onerror = onError;
   return eventSource;

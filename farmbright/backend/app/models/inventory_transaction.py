@@ -15,6 +15,9 @@ class InventoryTransaction(db.Model):
     )
     quantity_change = db.Column(db.Float, nullable=False)
     unit_cost = db.Column(db.Float, nullable=True)
+    bag_weight = db.Column(db.Float, nullable=True)
+    bag_price = db.Column(db.Float, nullable=True)
+    cost_per_lb = db.Column(db.Float, nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
     feed_type = db.relationship("FeedType", back_populates="inventory_transactions")

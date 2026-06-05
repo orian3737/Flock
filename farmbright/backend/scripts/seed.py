@@ -68,7 +68,8 @@ def seed():
             user=user,
             name="Layer Ration",
             unit="lbs",
-            cost_per_unit=0.62,
+            bag_weight=50.0,
+            bag_price=31.0,
             par_level=50.0,
             current_on_hand=150.0,
         )
@@ -76,7 +77,8 @@ def seed():
             user=user,
             name="Grower Crumble",
             unit="lbs",
-            cost_per_unit=0.55,
+            bag_weight=50.0,
+            bag_price=27.5,
             par_level=75.0,
             current_on_hand=200.0,
         )
@@ -84,7 +86,8 @@ def seed():
             user=user,
             name="Goat Pellet",
             unit="lbs",
-            cost_per_unit=0.48,
+            bag_weight=50.0,
+            bag_price=24.0,
             par_level=40.0,
             current_on_hand=120.0,
         )
@@ -112,6 +115,9 @@ def seed():
                     transaction_type="purchase",
                     quantity_change=150.0,
                     unit_cost=0.62,
+                    bag_weight=50.0,
+                    bag_price=31.0,
+                    cost_per_lb=0.62,
                     notes="Initial seed stock",
                 ),
                 InventoryTransaction(
@@ -120,6 +126,9 @@ def seed():
                     transaction_type="purchase",
                     quantity_change=200.0,
                     unit_cost=0.55,
+                    bag_weight=50.0,
+                    bag_price=27.5,
+                    cost_per_lb=0.55,
                     notes="Initial seed stock",
                 ),
                 InventoryTransaction(
@@ -128,6 +137,9 @@ def seed():
                     transaction_type="purchase",
                     quantity_change=120.0,
                     unit_cost=0.48,
+                    bag_weight=50.0,
+                    bag_price=24.0,
+                    cost_per_lb=0.48,
                     notes="Initial seed stock",
                 ),
             ]

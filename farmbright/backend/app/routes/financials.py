@@ -11,6 +11,7 @@ from app.services.financial_service import (
     get_flock_pl,
     get_user_flock_pl,
 )
+from app.utils.jwt_middleware import require_auth
 
 
 financials_bp = Blueprint("financials", __name__, url_prefix="/api/financials")
@@ -43,6 +44,7 @@ def flock_detail(flock_id):
 
 
 @financials_bp.post("/revenue")
+@require_auth
 def create_revenue():
     data = request.get_json(silent=True) or {}
     required_error = _required(data, ["user_id", "date", "amount", "source"])

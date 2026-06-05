@@ -45,10 +45,17 @@ function blankFeedType() {
     id: null,
     name: "",
     unit: "lbs",
-    cost_per_unit: "",
+    bag_weight: "50",
+    bag_price: "",
     current_on_hand: "",
     par_level: "",
   };
+}
+
+function feedCostPerLb(feed) {
+  const bagWeight = Number(feed.bag_weight || 0);
+  const bagPrice = Number(feed.bag_price || 0);
+  return bagWeight > 0 ? bagPrice / bagWeight : 0;
 }
 
 function formatError(error) {
@@ -200,7 +207,8 @@ function OnboardingWizard() {
           user_id: userId,
           name: item.name.trim(),
           unit: item.unit,
-          cost_per_unit: Number(item.cost_per_unit || 0),
+          bag_weight: Number(item.bag_weight || 0),
+          bag_price: Number(item.bag_price || 0),
           par_level: Number(item.par_level || 0),
           current_on_hand: Number(item.current_on_hand || 0),
         });
@@ -516,10 +524,23 @@ function FeedSetupStep({ feedTypes, flocks, assignments, onAdd, onRemove, onTogg
                 </button>
               ))}
             </div>
-            <label className="field">
-              <span>Cost/unit</span>
-              <input type="number" min="0" step="0.01" value={feed.cost_per_unit} onChange={(event) => onUpdate(feed.tempId, { cost_per_unit: event.target.value })} />
-            </label>
+            <div className="feed-bag-grid">
+              <label className="field">
+                <span>Bag Weight</span>
+                <input type="number" min="0" step="0.01" value={feed.bag_weight} onChange={(event) => onUpdate(feed.tempId, { bag_weight: event.target.value })} />
+                <small>{feed.unit}</small>
+              </label>
+              <label className="field">
+                <span>Bag Price</span>
+                <input type="number" min="0" step="0.01" value={feed.bag_price} onChange={(event) => onUpdate(feed.tempId, { bag_price: event.target.value })} />
+              </label>
+            </div>
+            <div className="feed-cost-preview">
+              <strong>Cost per lb: ${feedCostPerLb(feed).toFixed(4)}</strong>
+              <span>
+                (${Number(feed.bag_price || 0).toFixed(2)} / {Number(feed.bag_weight || 0) || 0} {feed.unit})
+              </span>
+            </div>
             <label className="field">
               <span>Stock on hand</span>
               <input type="number" min="0" step="0.01" value={feed.current_on_hand} onChange={(event) => onUpdate(feed.tempId, { current_on_hand: event.target.value })} />
@@ -625,7 +646,7 @@ function ReviewStep({ animalClasses, breeds, flocks, feedTypes, feedAssignments,
         <div className="feed-summary">
           {feedTypes.map((feed) => (
             <span key={feed.id}>
-              {feed.name}: {feed.current_on_hand} {feed.unit}
+              {feed.name}: {feed.current_on_hand} {feed.unit} @ ${Number(feed.cost_per_lb || feed.cost_per_unit || feedCostPerLb(feed)).toFixed(4)}/{feed.unit}
             </span>
           ))}
         </div>

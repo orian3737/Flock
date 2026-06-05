@@ -158,9 +158,19 @@ def _financial_rows(user_id, start_date, end_date):
 
 
 def _inventory_rows(user_id):
-    rows = [["Feed", "Unit", "On Hand", "Par Level", "Cost/Unit"]]
+    rows = [["Feed", "Unit", "On Hand", "Par Level", "Bag Weight", "Bag Price", "Cost/Lb"]]
     for feed in FeedType.query.filter_by(user_id=user_id).order_by(FeedType.name).all():
-        rows.append([feed.name, feed.unit, round(feed.current_on_hand, 2), round(feed.par_level, 2), round(feed.cost_per_unit, 2)])
+        rows.append(
+            [
+                feed.name,
+                feed.unit,
+                round(feed.current_on_hand, 2),
+                round(feed.par_level, 2),
+                round(feed.bag_weight, 2),
+                round(feed.bag_price, 2),
+                round(feed.cost_per_lb, 4),
+            ]
+        )
     return rows
 
 

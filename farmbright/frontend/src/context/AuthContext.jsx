@@ -1,23 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 
 import { getOnboardingSummary } from "../services/onboardingApi";
+import { isSupabaseConfigured, supabase } from "../services/supabaseClient";
 import { createUser, getUserByUid } from "../services/usersApi";
 
-const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const rawSupabaseKey = import.meta.env.VITE_SUPABASE_KEY;
-
-export const isSupabaseConfigured = Boolean(
-  rawSupabaseUrl &&
-    rawSupabaseKey &&
-    !rawSupabaseUrl.includes("<user will fill in>") &&
-    !rawSupabaseKey.includes("<user will fill in>")
-);
-
-export const supabase = createClient(
-  isSupabaseConfigured ? rawSupabaseUrl : "https://placeholder.supabase.co",
-  isSupabaseConfigured ? rawSupabaseKey : "placeholder-anon-key"
-);
+export { isSupabaseConfigured, supabase };
 
 export const AuthContext = createContext(null);
 

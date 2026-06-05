@@ -8,6 +8,7 @@ import {
   Scale,
   Settings,
   TrendingUp,
+  Tractor,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -22,6 +23,7 @@ const navItems = [
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/financials", label: "Financials", icon: TrendingUp },
   { to: "/export", label: "Export", icon: Download },
+  { to: "/farm-setup", label: "Farm Setup", icon: Tractor },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

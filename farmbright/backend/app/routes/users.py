@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import User
+from app.utils.jwt_middleware import require_auth
 
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
@@ -15,7 +16,9 @@ def _user_json(user):
         "id": user.id,
         "supabase_uid": user.supabase_uid,
         "email": user.email,
+        "display_name": user.display_name,
         "farm_name": user.farm_name,
+        "preferences": user.preferences or {},
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -63,4 +66,40 @@ def get_user_by_uid(supabase_uid):
     user = User.query.filter_by(supabase_uid=supabase_uid).first()
     if not user:
         return jsonify({"message": "User not found."}), 404
+    return jsonify(_user_json(user)), 200
+
+
+@users_bp.put("/<int:user_id>")
+@require_auth
+def update_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"message": "User not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    if "farm_name" in data:
+        farm_name = (data.get("farm_name") or "").strip()
+        if not farm_name:
+            return jsonify({"message": "Farm name cannot be blank."}), 400
+        user.farm_name = farm_name
+
+    if "display_name" in data:
+        user.display_name = (data.get("display_name") or "").strip() or None
+
+    db.session.commit()
+    return jsonify(_user_json(user)), 200
+
+
+@users_bp.put("/<int:user_id>/preferences")
+@require_auth
+def update_preferences(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"message": "User not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    current_preferences = user.preferences or {}
+    current_preferences.update(data)
+    user.preferences = current_preferences
+    db.session.commit()
     return jsonify(_user_json(user)), 200

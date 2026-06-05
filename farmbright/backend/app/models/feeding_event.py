@@ -15,6 +15,7 @@ class FeedingEvent(db.Model):
     date = db.Column(db.Date, nullable=False, default=date.today)
     timestamp = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     total_weight = db.Column(db.Float, nullable=False)
+    cost_per_lb_at_time = db.Column(db.Float, nullable=True)
     input_method = db.Column(db.Enum("manual", "scale", name="feeding_input_method"), nullable=False)
 
     flock = db.relationship("Flock", back_populates="feeding_events")
@@ -27,13 +28,34 @@ class FeedingEvent(db.Model):
 
     @hybrid_property
     def cost_total(self):
-        cost_per_unit = self.feed_type.cost_per_unit if self.feed_type else 0
+        cost_per_unit = self.cost_per_lb_at_time
+        if cost_per_unit is None:
+            cost_per_unit = self.feed_type.cost_per_lb if self.feed_type else 0
         return self.total_weight * cost_per_unit
 
     @hybrid_property
     def cost_per_bird(self):
         headcount = self.flock.current_headcount if self.flock else 0
         return self.cost_total / headcount if headcount else 0.0
+
+
+@event.listens_for(FeedingEvent, "before_insert")
+def lock_feed_cost(mapper, connection, target):
+    if target.cost_per_lb_at_time is not None:
+        return
+
+    from app.models.feed_type import FeedType
+
+    feed_table = FeedType.__table__
+    feed_row = connection.execute(
+        select(feed_table.c.bag_weight, feed_table.c.bag_price, feed_table.c.cost_per_unit).where(
+            feed_table.c.id == target.feed_type_id
+        )
+    ).first()
+    if feed_row and feed_row.bag_weight and feed_row.bag_weight > 0:
+        target.cost_per_lb_at_time = round(feed_row.bag_price / feed_row.bag_weight, 4)
+    elif feed_row:
+        target.cost_per_lb_at_time = feed_row.cost_per_unit
 
 
 @event.listens_for(FeedingEvent, "after_insert")
@@ -58,7 +80,8 @@ def debit_feed_inventory(mapper, connection, target):
             date=target.date,
             transaction_type="feeding",
             quantity_change=-target.total_weight,
-            unit_cost=None,
+            unit_cost=target.cost_per_lb_at_time,
+            cost_per_lb=target.cost_per_lb_at_time,
             notes=f"Auto-created from feeding event {target.id}",
         )
     )

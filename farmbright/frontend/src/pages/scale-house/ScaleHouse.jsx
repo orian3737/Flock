@@ -113,7 +113,7 @@ function ScaleHouse() {
   const effectiveWeight = Number(feedWeight) || 0;
   const adjustedHeadcount = Math.max((currentFlock?.current_headcount || 0) + headcountChange, 0);
   const weightPerBird = adjustedHeadcount ? effectiveWeight / adjustedHeadcount : 0;
-  const costTotal = currentFeed ? effectiveWeight * currentFeed.cost_per_unit : 0;
+  const costTotal = currentFeed ? effectiveWeight * (currentFeed.cost_per_lb ?? currentFeed.cost_per_unit ?? 0) : 0;
   const costPerBird = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
   const canLog = currentFlock && currentFeed && effectiveWeight > 0 && (headcountChange >= 0 || casualtyNotes.trim());
   const showProduction = currentFlock && ["layer", "breeder"].includes(currentFlock.designation) && !productionSkipped;

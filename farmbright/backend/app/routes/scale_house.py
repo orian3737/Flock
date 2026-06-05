@@ -19,6 +19,7 @@ from app.models import (
     User,
 )
 from app.services.scale_service import scale
+from app.utils.jwt_middleware import require_auth
 
 
 scale_house_bp = Blueprint("scale_house", __name__, url_prefix="/api/scale-house")
@@ -75,6 +76,7 @@ def queue_summary(user_id):
 
 
 @scale_house_bp.post("/session")
+@require_auth
 def log_session():
     data = request.get_json(silent=True) or {}
     required_error = _required(data, ["user_id", "flock_id", "feeding"])
@@ -122,6 +124,7 @@ def log_session():
             feed_type_id=feed_type.id,
             date=target_date,
             total_weight=total_weight,
+            cost_per_lb_at_time=feed_type.cost_per_lb,
             input_method=feeding["input_method"],
         )
         db.session.add(feeding_event)
@@ -180,6 +183,7 @@ def today_events(user_id):
 
 
 @scale_house_bp.delete("/event/<int:event_id>")
+@require_auth
 def delete_event(event_id):
     event = db.session.get(FeedingEvent, event_id)
     if not event:
@@ -194,7 +198,8 @@ def delete_event(event_id):
                 date=event.date,
                 transaction_type="adjustment",
                 quantity_change=event.total_weight,
-                unit_cost=feed_type.cost_per_unit,
+                unit_cost=event.cost_per_lb_at_time or feed_type.cost_per_lb,
+                cost_per_lb=event.cost_per_lb_at_time or feed_type.cost_per_lb,
                 notes="Deleted feeding event",
             )
         )
@@ -207,6 +212,7 @@ def delete_event(event_id):
 
 
 @scale_house_bp.patch("/event/<int:event_id>")
+@require_auth
 def patch_event(event_id):
     event = db.session.get(FeedingEvent, event_id)
     if not event:
@@ -232,25 +238,29 @@ def patch_event(event_id):
                 date=new_date,
                 transaction_type="adjustment",
                 quantity_change=old_weight,
-                unit_cost=old_feed.cost_per_unit,
+                unit_cost=event.cost_per_lb_at_time or old_feed.cost_per_lb,
+                cost_per_lb=event.cost_per_lb_at_time or old_feed.cost_per_lb,
                 notes=f"Adjusted feeding event {event.id}: restored previous weight",
             )
         )
 
         new_feed.current_on_hand -= new_weight
+        new_cost_per_lb = new_feed.cost_per_lb
         db.session.add(
             InventoryTransaction(
                 feed_type_id=new_feed.id,
                 date=new_date,
                 transaction_type="adjustment",
                 quantity_change=-new_weight,
-                unit_cost=new_feed.cost_per_unit,
+                unit_cost=new_cost_per_lb,
+                cost_per_lb=new_cost_per_lb,
                 notes=f"Adjusted feeding event {event.id}: applied updated weight",
             )
         )
 
         event.feed_type_id = new_feed.id
         event.total_weight = new_weight
+        event.cost_per_lb_at_time = new_cost_per_lb
         event.date = new_date
 
         if new_feed.current_on_hand <= new_feed.par_level:
@@ -337,6 +347,9 @@ def _queue_flock_json(flock, target_date):
                 "name": assignment.feed_type.name,
                 "unit": assignment.feed_type.unit,
                 "cost_per_unit": assignment.feed_type.cost_per_unit,
+                "cost_per_lb": assignment.feed_type.cost_per_lb,
+                "bag_weight": assignment.feed_type.bag_weight,
+                "bag_price": assignment.feed_type.bag_price,
                 "current_on_hand": assignment.feed_type.current_on_hand,
             }
             for assignment in flock.feed_assignments
@@ -410,6 +423,9 @@ def _feeding_event_json(event, include_names=False):
         "flock_id": event.flock_id,
         "feed_type_id": event.feed_type_id,
         "total_weight": round(event.total_weight, 2),
+        "cost_per_lb_at_time": round(event.cost_per_lb_at_time, 4)
+        if event.cost_per_lb_at_time is not None
+        else None,
         "weight_per_bird": round(event.weight_per_bird, 3),
         "cost_total": round(event.cost_total, 2),
         "cost_per_bird": round(event.cost_per_bird, 3),

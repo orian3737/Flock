@@ -10,9 +10,9 @@ from app.models import (
     AnimalClass,
     FeedType,
     FeedingEvent,
-    FinancialRecord,
     Flock,
     ProductionLog,
+    Revenue,
     User,
 )
 
@@ -53,15 +53,13 @@ def dashboard_overview(user_id):
     yesterday_events = FeedingEvent.query.filter(FeedingEvent.date == yesterday).all()
     yesterday_feed_cost = sum(event.cost_total for event in yesterday_events if event.flock_id in flock_ids)
     yesterday_eggs = _egg_total(user_id, yesterday)
-    yesterday_net_pl = (
-        db.session.query(func.coalesce(func.sum(FinancialRecord.net_pl), 0))
-        .join(Flock)
-        .join(Flock.breed)
-        .join(AnimalClass)
-        .filter(AnimalClass.user_id == user_id, FinancialRecord.date == yesterday)
+    yesterday_revenue = (
+        db.session.query(func.coalesce(func.sum(Revenue.amount), 0))
+        .filter(Revenue.user_id == user_id, Revenue.date == yesterday)
         .scalar()
         or 0.0
     )
+    yesterday_net_pl = yesterday_revenue - yesterday_feed_cost
 
     feed_types = FeedType.query.filter_by(user_id=user_id).order_by(FeedType.name).all()
 

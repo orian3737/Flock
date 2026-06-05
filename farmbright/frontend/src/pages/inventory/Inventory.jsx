@@ -86,7 +86,11 @@ function Inventory() {
 
   function beginEdit(feed, field) {
     setEditing({ feedId: feed.id, field });
-    setEditValue(String(feed[field]));
+    if (field === "bag") {
+      setEditValue({ bag_weight: String(feed.bag_weight || ""), bag_price: String(feed.bag_price || "") });
+    } else {
+      setEditValue(String(feed[field]));
+    }
   }
 
   async function saveEdit() {
@@ -94,7 +98,8 @@ function Inventory() {
       return;
     }
 
-    await updateFeed(editing.feedId, { [editing.field]: editValue });
+    const payload = editing.field === "bag" ? editValue : { [editing.field]: editValue };
+    await updateFeed(editing.feedId, payload);
     setEditing(null);
     setEditValue("");
     await refreshInventory();
@@ -179,28 +184,15 @@ function Inventory() {
 
             <div className="inventory-stat-row">
               <InventoryStat label="On Hand" value={`${formatNumber(feed.current_on_hand)} ${feed.unit}`} />
-              <EditableStat
+              <EditableBagStat
                 editing={editing}
                 editValue={editValue}
                 feed={feed}
-                field="par_level"
-                label="Par Level"
                 setEditValue={setEditValue}
                 onBeginEdit={beginEdit}
                 onSave={saveEdit}
-                value={`${formatNumber(feed.par_level)} ${feed.unit}`}
               />
-              <EditableStat
-                editing={editing}
-                editValue={editValue}
-                feed={feed}
-                field="cost_per_unit"
-                label="Cost/Unit"
-                setEditValue={setEditValue}
-                onBeginEdit={beginEdit}
-                onSave={saveEdit}
-                value={formatMoney(feed.cost_per_unit)}
-              />
+              <InventoryStat label="Cost per lb" value={formatMoney(feed.cost_per_lb ?? feed.cost_per_unit)} />
             </div>
 
             <footer className="inventory-card-actions">
@@ -295,6 +287,44 @@ function EditableStat({ editing, editValue, feed, field, label, onBeginEdit, onS
   );
 }
 
+function EditableBagStat({ editing, editValue, feed, onBeginEdit, onSave, setEditValue }) {
+  const isEditing = editing?.feedId === feed.id && editing?.field === "bag";
+  const bagWeight = isEditing ? Number(editValue.bag_weight || 0) : Number(feed.bag_weight || 0);
+  const bagPrice = isEditing ? Number(editValue.bag_price || 0) : Number(feed.bag_price || 0);
+
+  return (
+    <div className="inventory-stat editable" onClick={() => !isEditing && onBeginEdit(feed, "bag")}>
+      <span>Bag Size</span>
+      {isEditing ? (
+        <div className="inline-bag-edit" onClick={(event) => event.stopPropagation()}>
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={editValue.bag_weight}
+            onChange={(event) => setEditValue((value) => ({ ...value, bag_weight: event.target.value }))}
+          />
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={editValue.bag_price}
+            onChange={(event) => setEditValue((value) => ({ ...value, bag_price: event.target.value }))}
+          />
+          <button type="button" onClick={onSave} aria-label="Save bag details">
+            <Check size={15} aria-hidden="true" />
+          </button>
+          <small>{formatMoney(bagWeight > 0 ? bagPrice / bagWeight : 0)}/lb</small>
+        </div>
+      ) : (
+        <strong>
+          {formatNumber(feed.bag_weight || 0)} {feed.unit} @ {formatMoney(feed.bag_price || 0)}
+        </strong>
+      )}
+    </div>
+  );
+}
+
 function TransactionHistory({ rows, unit }) {
   return (
     <div className="transaction-history">
@@ -338,17 +368,22 @@ function TransactionHistory({ rows, unit }) {
 }
 
 function PurchaseModal({ feed, onClose, onSubmit }) {
-  const [quantity, setQuantity] = useState("");
-  const [unitCost, setUnitCost] = useState(feed.cost_per_unit || "");
+  const [numBags, setNumBags] = useState("1");
+  const [bagWeight, setBagWeight] = useState(feed.bag_weight || 50);
+  const [bagPrice, setBagPrice] = useState(feed.bag_price || "");
   const [date, setDate] = useState(todayString());
   const [supplier, setSupplier] = useState("");
+  const totalAdded = Number(numBags || 0) * Number(bagWeight || 0);
+  const costPerLb = Number(bagWeight || 0) > 0 ? Number(bagPrice || 0) / Number(bagWeight || 0) : 0;
+  const totalCost = Number(numBags || 0) * Number(bagPrice || 0);
 
   function submit(event) {
     event.preventDefault();
     onSubmit({
       feed_type_id: feed.id,
-      quantity: Number(quantity),
-      unit_cost: Number(unitCost),
+      num_bags: Number(numBags),
+      bag_weight: Number(bagWeight),
+      bag_price: Number(bagPrice),
       date,
       supplier: supplier || null,
     });
@@ -358,12 +393,16 @@ function PurchaseModal({ feed, onClose, onSubmit }) {
     <ModalFrame title={`Purchase ${feed.name}`} onClose={onClose}>
       <form className="inventory-modal-form" onSubmit={submit}>
         <label>
-          Quantity
-          <input min="0" required step="0.01" type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+          How many bags?
+          <input min="0" required step="1" type="number" value={numBags} onChange={(event) => setNumBags(event.target.value)} />
         </label>
         <label>
-          Cost/unit
-          <input min="0" required step="0.01" type="number" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} />
+          Bag weight ({feed.unit})
+          <input min="0" required step="0.01" type="number" value={bagWeight} onChange={(event) => setBagWeight(event.target.value)} />
+        </label>
+        <label>
+          Bag price
+          <input min="0" required step="0.01" type="number" value={bagPrice} onChange={(event) => setBagPrice(event.target.value)} />
         </label>
         <label>
           Date
@@ -373,6 +412,11 @@ function PurchaseModal({ feed, onClose, onSubmit }) {
           Supplier
           <input value={supplier} onChange={(event) => setSupplier(event.target.value)} />
         </label>
+        <div className="purchase-computed">
+          <span>Total added to inventory: {formatNumber(totalAdded)} {feed.unit}</span>
+          <span>Cost per lb: {formatMoney(costPerLb)}</span>
+          <span>Total purchase cost: {formatMoney(totalCost)}</span>
+        </div>
         <button className="primary-button full-width" type="submit">
           Save Purchase
         </button>

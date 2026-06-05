@@ -5,6 +5,7 @@ from flask_cors import CORS
 
 from app.extensions import db
 from app.models import Alert, FeedType, InventoryTransaction
+from app.utils.jwt_middleware import require_auth
 
 
 inventory_bp = Blueprint("inventory", __name__, url_prefix="/api/inventory")
@@ -43,9 +44,10 @@ def feed_transactions(feed_id):
 
 
 @inventory_bp.post("/purchase")
+@require_auth
 def purchase_feed():
     data = request.get_json(silent=True) or {}
-    required_error = _required(data, ["feed_type_id", "quantity", "unit_cost"])
+    required_error = _required(data, ["feed_type_id", "num_bags", "bag_weight", "bag_price"])
     if required_error:
         return required_error
 
@@ -53,23 +55,32 @@ def purchase_feed():
     if not feed_type:
         return jsonify({"message": "Feed type not found."}), 404
 
-    quantity = float(data["quantity"])
-    unit_cost = float(data["unit_cost"])
+    num_bags = float(data["num_bags"])
+    bag_weight = float(data["bag_weight"])
+    bag_price = float(data["bag_price"])
     transaction_date = _parse_date(data.get("date")) or date.today()
 
-    if quantity <= 0:
-        return jsonify({"message": "Purchase quantity must be greater than zero."}), 400
+    if num_bags <= 0 or bag_weight <= 0:
+        return jsonify({"message": "Number of bags and bag weight must be greater than zero."}), 400
 
-    feed_type.current_on_hand += quantity
-    feed_type.cost_per_unit = unit_cost
+    total_quantity = num_bags * bag_weight
+    cost_per_lb = bag_price / bag_weight
+    feed_type.current_on_hand += total_quantity
+    feed_type.bag_weight = bag_weight
+    feed_type.bag_price = bag_price
+    feed_type.cost_per_unit = cost_per_lb
     db.session.add(
         InventoryTransaction(
             feed_type_id=feed_type.id,
             date=transaction_date,
             transaction_type="purchase",
-            quantity_change=quantity,
-            unit_cost=unit_cost,
-            notes=data.get("supplier"),
+            quantity_change=total_quantity,
+            unit_cost=cost_per_lb,
+            bag_weight=bag_weight,
+            bag_price=bag_price,
+            cost_per_lb=cost_per_lb,
+            notes=f"{num_bags:g} bag(s) @ ${bag_price:g} / {bag_weight:g} {feed_type.unit}"
+            + (f" - {data.get('supplier')}" if data.get("supplier") else ""),
         )
     )
     Alert.query.filter_by(feed_type_id=feed_type.id, alert_type="low_feed", is_read=False).update(
@@ -81,6 +92,7 @@ def purchase_feed():
 
 
 @inventory_bp.post("/adjustment")
+@require_auth
 def adjust_feed():
     data = request.get_json(silent=True) or {}
     required_error = _required(data, ["feed_type_id", "quantity_change", "reason"])
@@ -101,7 +113,8 @@ def adjust_feed():
             date=transaction_date,
             transaction_type="adjustment",
             quantity_change=quantity_change,
-            unit_cost=feed_type.cost_per_unit,
+            unit_cost=feed_type.cost_per_lb,
+            cost_per_lb=feed_type.cost_per_lb,
             notes=data.get("reason"),
         )
     )
@@ -121,6 +134,7 @@ def inventory_alerts(user_id):
 
 
 @inventory_bp.patch("/feed/<int:feed_id>")
+@require_auth
 def update_feed(feed_id):
     feed_type = db.session.get(FeedType, feed_id)
     if not feed_type:
@@ -131,8 +145,13 @@ def update_feed(feed_id):
         feed_type.name = data["name"]
     if "par_level" in data:
         feed_type.par_level = float(data["par_level"])
-    if "cost_per_unit" in data:
-        feed_type.cost_per_unit = float(data["cost_per_unit"])
+    if "bag_weight" in data:
+        bag_weight = float(data["bag_weight"])
+        if bag_weight <= 0:
+            return jsonify({"message": "Bag weight must be greater than zero."}), 400
+        feed_type.bag_weight = bag_weight
+    if "bag_price" in data:
+        feed_type.bag_price = float(data["bag_price"])
 
     db.session.commit()
     return jsonify(_feed_type_json(feed_type))
@@ -180,6 +199,9 @@ def _feed_type_json(feed_type):
         "name": feed_type.name,
         "unit": feed_type.unit,
         "cost_per_unit": round(feed_type.cost_per_unit, 4),
+        "cost_per_lb": round(feed_type.cost_per_lb, 4),
+        "bag_weight": round(feed_type.bag_weight, 2),
+        "bag_price": round(feed_type.bag_price, 2),
         "par_level": round(feed_type.par_level, 2),
         "current_on_hand": round(feed_type.current_on_hand, 2),
         "status": _feed_status(feed_type),
@@ -194,6 +216,9 @@ def _transaction_json(transaction, running_balance):
         "transaction_type": transaction.transaction_type,
         "quantity_change": round(transaction.quantity_change, 2),
         "unit_cost": round(transaction.unit_cost, 4) if transaction.unit_cost is not None else None,
+        "bag_weight": round(transaction.bag_weight, 2) if transaction.bag_weight is not None else None,
+        "bag_price": round(transaction.bag_price, 2) if transaction.bag_price is not None else None,
+        "cost_per_lb": round(transaction.cost_per_lb, 4) if transaction.cost_per_lb is not None else None,
         "notes": transaction.notes,
         "running_balance": round(running_balance, 2),
     }

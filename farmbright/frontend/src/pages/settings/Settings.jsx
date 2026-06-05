@@ -1,346 +1,272 @@
-import React, { useContext, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil, Save, Trash2, X } from "lucide-react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import { Bell, CreditCard, Settings as SettingsIcon, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import { AuthContext } from "../../context/AuthContext";
-import {
-  deleteAnimalClass,
-  deleteBreed,
-  deleteFeedType,
-  deleteFlock,
-  getOnboardingSummary,
-  updateAnimalClass,
-  updateBreed,
-  updateFeedType,
-  updateFlock,
-} from "../../services/onboardingApi";
+import { AuthContext, supabase } from "../../context/AuthContext";
+import { useFarm } from "../../context/FarmContext";
+import { useToast } from "../../context/ToastContext";
+import { updateUser, updateUserPreferences } from "../../services/usersApi";
 
-const designations = ["layer", "breeder", "meat", "mixed"];
+const tabs = [
+  { id: "account", label: "Account", icon: User },
+  { id: "farm", label: "Farm", icon: SettingsIcon },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "billing", label: "Billing", icon: CreditCard },
+];
+
+const defaultPreferences = {
+  low_feed_alerts: true,
+  email_alerts: false,
+  daily_summary_email: false,
+};
 
 function Settings() {
+  const navigate = useNavigate();
   const { dbUser } = useContext(AuthContext);
-  const [summary, setSummary] = useState({ animal_classes: [], feed_types: [] });
-  const [openPanels, setOpenPanels] = useState(new Set());
-  const [editing, setEditing] = useState(null);
-  const [draft, setDraft] = useState({});
-  const [toast, setToast] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  async function loadSummary() {
-    if (!dbUser?.id) return;
-    setLoading(true);
-    setError("");
-    try {
-      const data = await getOnboardingSummary(dbUser.id);
-      setSummary(data);
-      setOpenPanels((current) => {
-        if (current.size) return current;
-        return new Set(data.animal_classes.map((animalClass) => animalClass.id));
-      });
-    } catch (err) {
-      setError(formatError(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { setFarmName } = useFarm();
+  const { showError, showSuccess } = useToast();
+  const [activeTab, setActiveTab] = useState("account");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [farmNameDraft, setFarmNameDraft] = useState("");
+  const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York");
+  const [preferences, setPreferences] = useState(defaultPreferences);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadSummary();
-  }, [dbUser?.id]);
+    setDisplayName(dbUser?.display_name || "");
+    setEmail(dbUser?.email || "");
+    setFarmNameDraft(dbUser?.farm_name || "");
+    setPreferences({ ...defaultPreferences, ...(dbUser?.preferences || {}) });
+    setTimeZone(dbUser?.preferences?.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York");
+  }, [dbUser]);
 
-  function beginEdit(type, item) {
-    setEditing({ type, id: item.id });
-    setDraft({ ...item });
-    setToast("");
-    setError("");
-  }
+  const emailAddress = useMemo(() => dbUser?.email || email || "your account email", [dbUser?.email, email]);
 
-  function cancelEdit() {
-    setEditing(null);
-    setDraft({});
-  }
-
-  function isEditing(type, id) {
-    return editing?.type === type && editing?.id === id;
-  }
-
-  function updateDraft(key, value) {
-    setDraft((current) => ({ ...current, [key]: value }));
-  }
-
-  function togglePanel(id) {
-    setOpenPanels((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
-
-  async function saveEdit(type, id) {
-    setError("");
-    setToast("");
+  async function saveAccount() {
+    if (!dbUser?.id) return;
+    setSaving(true);
     try {
-      if (type === "animalClass") {
-        await updateAnimalClass(id, { name: draft.name });
-      }
-      if (type === "breed") {
-        await updateBreed(id, { name: draft.name });
-      }
-      if (type === "flock") {
-        await updateFlock(id, {
-          name: draft.name,
-          designation: draft.designation,
-          pen_name: draft.pen_name,
-          current_headcount: Number(draft.current_headcount || 0),
-        });
-      }
-      if (type === "feedType") {
-        await updateFeedType(id, {
-          name: draft.name,
-          unit: draft.unit,
-          cost_per_unit: Number(draft.cost_per_unit || 0),
-          par_level: Number(draft.par_level || 0),
-          current_on_hand: Number(draft.current_on_hand || 0),
-        });
-      }
-      setToast("Saved changes.");
-      cancelEdit();
-      await loadSummary();
-    } catch (err) {
-      setError(formatError(err));
+      await updateUser(dbUser.id, { display_name: displayName, farm_name: farmNameDraft || dbUser.farm_name });
+      showSuccess("Account updated");
+    } catch (error) {
+      showError(formatError(error));
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function deleteItem(type, id) {
-    setError("");
-    setToast("");
-    try {
-      if (type === "animalClass") await deleteAnimalClass(id);
-      if (type === "breed") await deleteBreed(id);
-      if (type === "flock") await deleteFlock(id);
-      if (type === "feedType") await deleteFeedType(id);
-      setToast("Deleted.");
-      await loadSummary();
-    } catch (err) {
-      setError(formatError(err));
+  async function updatePassword() {
+    if (!newPassword || newPassword !== confirmPassword) {
+      showError("New passwords must match.");
+      return;
     }
+    setSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      showSuccess("Password updated");
+    } catch (error) {
+      showError(error.message || "Password could not be updated.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveFarm() {
+    if (!dbUser?.id) return;
+    setSaving(true);
+    try {
+      const updated = await updateUser(dbUser.id, { farm_name: farmNameDraft });
+      await updateUserPreferences(dbUser.id, { ...preferences, time_zone: timeZone });
+      setFarmName(updated.farm_name);
+      showSuccess("Farm settings updated");
+    } catch (error) {
+      showError(formatError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveNotifications() {
+    if (!dbUser?.id) return;
+    setSaving(true);
+    try {
+      await updateUserPreferences(dbUser.id, preferences);
+      showSuccess("Notification preferences saved");
+    } catch (error) {
+      showError(formatError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updatePreference(key, value) {
+    setPreferences((current) => ({ ...current, [key]: value }));
   }
 
   return (
-    <section className="settings-page">
+    <section className="settings-page admin-settings-page">
       <header className="page-header">
         <div>
-          <h1 className="display-font">Farm Setup</h1>
-          <p className="settings-subheader">Edit your animals, flocks, and feed settings</p>
+          <h1 className="display-font">Settings</h1>
+          <p className="settings-subheader">Account, farm, notifications, and plan settings</p>
         </div>
       </header>
 
-      {toast && <div className="settings-toast">{toast}</div>}
-      {error && <div className="error-banner">{error}</div>}
-      {loading ? <div className="panel-card">Loading farm setup...</div> : null}
-
-      <div className="settings-stack">
-        {summary.animal_classes.map((animalClass) => {
-          const open = openPanels.has(animalClass.id);
+      <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
           return (
-            <section className="settings-panel" key={animalClass.id}>
-              <div className="settings-panel-header">
-                <button className="accordion-toggle" type="button" onClick={() => togglePanel(animalClass.id)}>
-                  {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                </button>
-                <InlineNameEditor
-                  editing={isEditing("animalClass", animalClass.id)}
-                  value={isEditing("animalClass", animalClass.id) ? draft.name : animalClass.name}
-                  onChange={(value) => updateDraft("name", value)}
-                />
-                <RowActions
-                  editing={isEditing("animalClass", animalClass.id)}
-                  onCancel={cancelEdit}
-                  onDelete={() => deleteItem("animalClass", animalClass.id)}
-                  onEdit={() => beginEdit("animalClass", animalClass)}
-                  onSave={() => saveEdit("animalClass", animalClass.id)}
-                />
-              </div>
-
-              {open ? (
-                <div className="settings-panel-body">
-                  {animalClass.breeds.map((breed) => (
-                    <section className="breed-editor" key={breed.id}>
-                      <div className="settings-row">
-                        <InlineNameEditor
-                          editing={isEditing("breed", breed.id)}
-                          value={isEditing("breed", breed.id) ? draft.name : breed.name}
-                          onChange={(value) => updateDraft("name", value)}
-                        />
-                        <RowActions
-                          editing={isEditing("breed", breed.id)}
-                          onCancel={cancelEdit}
-                          onDelete={() => deleteItem("breed", breed.id)}
-                          onEdit={() => beginEdit("breed", breed)}
-                          onSave={() => saveEdit("breed", breed.id)}
-                        />
-                      </div>
-
-                      <div className="flock-editor-list">
-                        {breed.flocks.map((flock) => (
-                          <FlockEditor
-                            draft={draft}
-                            editing={isEditing("flock", flock.id)}
-                            flock={flock}
-                            key={flock.id}
-                            onCancel={cancelEdit}
-                            onChange={updateDraft}
-                            onDelete={() => deleteItem("flock", flock.id)}
-                            onEdit={() => beginEdit("flock", flock)}
-                            onSave={() => saveEdit("flock", flock.id)}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              ) : null}
-            </section>
+            <button
+              className={`settings-tab${activeTab === tab.id ? " active" : ""}`}
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              <span>{tab.label}</span>
+              {tab.id === "billing" ? <small>soon</small> : null}
+            </button>
           );
         })}
+      </div>
 
-        <section className="settings-panel">
-          <div className="settings-panel-header">
-            <strong>Feed Types</strong>
+      {activeTab === "account" ? (
+        <section className="settings-panel admin-settings-panel">
+          <h2 className="display-font">Account Settings</h2>
+          <div className="settings-form-grid">
+            <label className="field">
+              <span>Display name</span>
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Email</span>
+              <input value={email} onChange={(event) => setEmail(event.target.value)} />
+            </label>
           </div>
-          <div className="settings-panel-body">
-            <div className="feed-type-editor-list">
-              {summary.feed_types.map((feedType) => (
-                <FeedTypeEditor
-                  draft={draft}
-                  editing={isEditing("feedType", feedType.id)}
-                  feedType={feedType}
-                  key={feedType.id}
-                  onCancel={cancelEdit}
-                  onChange={updateDraft}
-                  onDelete={() => deleteItem("feedType", feedType.id)}
-                  onEdit={() => beginEdit("feedType", feedType)}
-                  onSave={() => saveEdit("feedType", feedType.id)}
-                />
-              ))}
+          <button className="secondary-button" type="button" disabled={saving} onClick={saveAccount}>
+            Save Changes
+          </button>
+
+          <div className="settings-divider" />
+          <h3 className="display-font">Change Password</h3>
+          <div className="settings-form-grid three">
+            <label className="field">
+              <span>Current password</span>
+              <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>New password</span>
+              <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Confirm new password</span>
+              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+            </label>
+          </div>
+          <button className="primary-button" type="button" disabled={saving} onClick={updatePassword}>
+            Update Password
+          </button>
+        </section>
+      ) : null}
+
+      {activeTab === "farm" ? (
+        <section className="settings-panel admin-settings-panel">
+          <h2 className="display-font">Farm Settings</h2>
+          <div className="settings-form-grid">
+            <label className="field">
+              <span>Farm name</span>
+              <input value={farmNameDraft} onChange={(event) => setFarmNameDraft(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Time zone</span>
+              <select value={timeZone} onChange={(event) => setTimeZone(event.target.value)}>
+                <option value="America/New_York">America/New_York</option>
+                <option value="America/Chicago">America/Chicago</option>
+                <option value="America/Denver">America/Denver</option>
+                <option value="America/Los_Angeles">America/Los_Angeles</option>
+                <option value="America/Anchorage">America/Anchorage</option>
+                <option value="Pacific/Honolulu">Pacific/Honolulu</option>
+              </select>
+            </label>
+          </div>
+          <button className="secondary-button" type="button" disabled={saving} onClick={saveFarm}>
+            Save Changes
+          </button>
+          <button className="farm-setup-link" type="button" onClick={() => navigate("/farm-setup")}>
+            <strong>Go to Farm Setup</strong>
+            <span>Add or edit your animals, flocks, and feed types</span>
+          </button>
+        </section>
+      ) : null}
+
+      {activeTab === "notifications" ? (
+        <section className="settings-panel admin-settings-panel">
+          <h2 className="display-font">Notifications</h2>
+          <div className="toggle-list">
+            <ToggleRow
+              checked={preferences.low_feed_alerts}
+              description="Create in-app alerts when feed reaches par level."
+              label="Low feed alerts"
+              onChange={(checked) => updatePreference("low_feed_alerts", checked)}
+            />
+            <ToggleRow
+              checked={preferences.email_alerts}
+              description={`Send low-feed email alerts to ${emailAddress}.`}
+              label="Email alerts"
+              onChange={(checked) => updatePreference("email_alerts", checked)}
+            />
+            <ToggleRow
+              checked={preferences.daily_summary_email}
+              description="Send a daily summary email after chores are complete."
+              label="Daily summary email"
+              onChange={(checked) => updatePreference("daily_summary_email", checked)}
+            />
+          </div>
+          <button className="primary-button" type="button" disabled={saving} onClick={saveNotifications}>
+            Save
+          </button>
+        </section>
+      ) : null}
+
+      {activeTab === "billing" ? (
+        <section className="settings-panel admin-settings-panel billing-panel">
+          <h2 className="display-font">Billing & Plan</h2>
+          <div className="billing-card">
+            <div>
+              <span className="mono-label">Current plan</span>
+              <strong>Free</strong>
             </div>
+            <span className="coming-soon-badge">Upgrade to Pro - coming soon</span>
+            <p>Pro will add advanced reports, multi-user access, expanded automation, and deeper production analytics.</p>
           </div>
         </section>
-      </div>
+      ) : null}
     </section>
   );
 }
 
-function InlineNameEditor({ editing, onChange, value }) {
-  if (editing) {
-    return <input className="settings-inline-input" value={value || ""} onChange={(event) => onChange(event.target.value)} />;
-  }
-  return <strong>{value}</strong>;
-}
-
-function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
+function ToggleRow({ checked, description, label, onChange }) {
   return (
-    <div className="settings-actions">
-      {editing ? (
-        <>
-          <button className="icon-button" type="button" onClick={onSave} aria-label="Save">
-            <Save size={16} />
-          </button>
-          <button className="icon-button" type="button" onClick={onCancel} aria-label="Cancel">
-            <X size={16} />
-          </button>
-        </>
-      ) : (
-        <button className="icon-button" type="button" onClick={onEdit} aria-label="Edit">
-          <Pencil size={16} />
-        </button>
-      )}
-      <button className="icon-button danger" type="button" onClick={onDelete} aria-label="Delete">
-        <Trash2 size={16} />
-      </button>
-    </div>
-  );
-}
-
-function FlockEditor({ draft, editing, flock, onCancel, onChange, onDelete, onEdit, onSave }) {
-  const source = editing ? draft : flock;
-  return (
-    <div className="settings-edit-card">
-      <div className="settings-edit-grid">
-        <label className="field">
-          <span>Name</span>
-          <input disabled={!editing} value={source.name || ""} onChange={(event) => onChange("name", event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Pen</span>
-          <input disabled={!editing} value={source.pen_name || ""} onChange={(event) => onChange("pen_name", event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Headcount</span>
-          <input
-            disabled={!editing}
-            min="0"
-            type="number"
-            value={source.current_headcount ?? 0}
-            onChange={(event) => onChange("current_headcount", event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Designation</span>
-          <select disabled={!editing} value={source.designation || "mixed"} onChange={(event) => onChange("designation", event.target.value)}>
-            {designations.map((designation) => (
-              <option key={designation} value={designation}>
-                {designation}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <RowActions editing={editing} onCancel={onCancel} onDelete={onDelete} onEdit={onEdit} onSave={onSave} />
-    </div>
-  );
-}
-
-function FeedTypeEditor({ draft, editing, feedType, onCancel, onChange, onDelete, onEdit, onSave }) {
-  const source = editing ? draft : feedType;
-  return (
-    <div className="settings-edit-card">
-      <div className="settings-edit-grid feed-type-grid">
-        <label className="field">
-          <span>Name</span>
-          <input disabled={!editing} value={source.name || ""} onChange={(event) => onChange("name", event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Unit</span>
-          <select disabled={!editing} value={source.unit || "lbs"} onChange={(event) => onChange("unit", event.target.value)}>
-            <option value="lbs">lbs</option>
-            <option value="kg">kg</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>Cost/unit</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.cost_per_unit ?? 0} onChange={(event) => onChange("cost_per_unit", event.target.value)} />
-        </label>
-        <label className="field">
-          <span>On hand</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.current_on_hand ?? 0} onChange={(event) => onChange("current_on_hand", event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Par</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.par_level ?? 0} onChange={(event) => onChange("par_level", event.target.value)} />
-        </label>
-      </div>
-      <RowActions editing={editing} onCancel={onCancel} onDelete={onDelete} onEdit={onEdit} onSave={onSave} />
-    </div>
+    <label className="toggle-row">
+      <span>
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+      <input type="checkbox" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} />
+    </label>
   );
 }
 
 function formatError(error) {
-  return error?.response?.data?.message || error?.message || "Something went wrong.";
+  return error?.response?.data?.message || error?.response?.data?.error || error?.message || "Something went wrong.";
 }
 
 export default Settings;

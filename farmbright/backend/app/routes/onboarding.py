@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import AnimalClass, Breed, FeedAssignment, FeedType, Flock
+from app.utils.jwt_middleware import require_auth
 
 
 onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
@@ -49,6 +50,9 @@ def _feed_type_json(feed_type):
         "name": feed_type.name,
         "unit": feed_type.unit,
         "cost_per_unit": feed_type.cost_per_unit,
+        "cost_per_lb": feed_type.cost_per_lb,
+        "bag_weight": feed_type.bag_weight,
+        "bag_price": feed_type.bag_price,
         "par_level": feed_type.par_level,
         "current_on_hand": feed_type.current_on_hand,
     }
@@ -67,6 +71,7 @@ def _not_found(label):
 
 
 @onboarding_bp.post("/animal-class")
+@require_auth
 def create_animal_class():
     data = _payload()
     error = _required(data, ["user_id", "name"])
@@ -88,6 +93,7 @@ def create_animal_class():
 
 
 @onboarding_bp.patch("/animal-class/<int:animal_class_id>")
+@require_auth
 def update_animal_class(animal_class_id):
     animal_class = db.session.get(AnimalClass, animal_class_id)
     if not animal_class:
@@ -108,6 +114,7 @@ def update_animal_class(animal_class_id):
 
 
 @onboarding_bp.delete("/animal-class/<int:animal_class_id>")
+@require_auth
 def delete_animal_class(animal_class_id):
     animal_class = db.session.get(AnimalClass, animal_class_id)
     if not animal_class:
@@ -122,6 +129,7 @@ def delete_animal_class(animal_class_id):
 
 
 @onboarding_bp.post("/breed")
+@require_auth
 def create_breed():
     data = _payload()
     error = _required(data, ["animal_class_id", "name"])
@@ -143,6 +151,7 @@ def create_breed():
 
 
 @onboarding_bp.patch("/breed/<int:breed_id>")
+@require_auth
 def update_breed(breed_id):
     breed = db.session.get(Breed, breed_id)
     if not breed:
@@ -163,6 +172,7 @@ def update_breed(breed_id):
 
 
 @onboarding_bp.delete("/breed/<int:breed_id>")
+@require_auth
 def delete_breed(breed_id):
     breed = db.session.get(Breed, breed_id)
     if not breed:
@@ -177,6 +187,7 @@ def delete_breed(breed_id):
 
 
 @onboarding_bp.post("/flock")
+@require_auth
 def create_flock():
     data = _payload()
     error = _required(data, ["breed_id", "name", "designation", "current_headcount"])
@@ -208,6 +219,7 @@ def create_flock():
 
 
 @onboarding_bp.patch("/flock/<int:flock_id>")
+@require_auth
 def update_flock(flock_id):
     flock = db.session.get(Flock, flock_id)
     if not flock:
@@ -236,6 +248,7 @@ def update_flock(flock_id):
 
 
 @onboarding_bp.delete("/flock/<int:flock_id>")
+@require_auth
 def delete_flock(flock_id):
     flock = db.session.get(Flock, flock_id)
     if not flock:
@@ -250,9 +263,10 @@ def delete_flock(flock_id):
 
 
 @onboarding_bp.post("/feed-type")
+@require_auth
 def create_feed_type():
     data = _payload()
-    error = _required(data, ["user_id", "name", "unit", "cost_per_unit", "par_level", "current_on_hand"])
+    error = _required(data, ["user_id", "name", "unit", "bag_weight", "bag_price", "par_level", "current_on_hand"])
     if error:
         return error
 
@@ -265,11 +279,18 @@ def create_feed_type():
     if duplicate:
         return jsonify({"message": "Feed type already exists for this user."}), 409
 
+    bag_weight = float(data["bag_weight"])
+    bag_price = float(data["bag_price"])
+    if bag_weight <= 0:
+        return jsonify({"message": "Bag weight must be greater than zero."}), 400
+
     feed_type = FeedType(
         user_id=data["user_id"],
         name=name,
         unit=unit,
-        cost_per_unit=float(data["cost_per_unit"]),
+        bag_weight=bag_weight,
+        bag_price=bag_price,
+        cost_per_unit=bag_price / bag_weight,
         par_level=float(data["par_level"]),
         current_on_hand=float(data["current_on_hand"]),
     )
@@ -282,6 +303,7 @@ def create_feed_type():
 
 
 @onboarding_bp.patch("/feed-type/<int:feed_type_id>")
+@require_auth
 def update_feed_type(feed_type_id):
     feed_type = db.session.get(FeedType, feed_type_id)
     if not feed_type:
@@ -297,8 +319,13 @@ def update_feed_type(feed_type_id):
         if data["unit"] not in {"lbs", "kg"}:
             return jsonify({"message": "Unit must be lbs or kg."}), 400
         feed_type.unit = data["unit"]
-    if "cost_per_unit" in data:
-        feed_type.cost_per_unit = float(data["cost_per_unit"])
+    if "bag_weight" in data:
+        bag_weight = float(data["bag_weight"])
+        if bag_weight <= 0:
+            return jsonify({"message": "Bag weight must be greater than zero."}), 400
+        feed_type.bag_weight = bag_weight
+    if "bag_price" in data:
+        feed_type.bag_price = float(data["bag_price"])
     if "par_level" in data:
         feed_type.par_level = float(data["par_level"])
     if "current_on_hand" in data:
@@ -312,6 +339,7 @@ def update_feed_type(feed_type_id):
 
 
 @onboarding_bp.delete("/feed-type/<int:feed_type_id>")
+@require_auth
 def delete_feed_type(feed_type_id):
     feed_type = db.session.get(FeedType, feed_type_id)
     if not feed_type:
@@ -326,6 +354,7 @@ def delete_feed_type(feed_type_id):
 
 
 @onboarding_bp.post("/feed-assignment")
+@require_auth
 def create_feed_assignment():
     data = _payload()
     error = _required(data, ["flock_id", "feed_type_id"])
@@ -349,6 +378,7 @@ def create_feed_assignment():
 
 
 @onboarding_bp.delete("/feed-assignment/<int:assignment_id>")
+@require_auth
 def delete_feed_assignment(assignment_id):
     assignment = db.session.get(FeedAssignment, assignment_id)
     if not assignment:
