@@ -2,9 +2,9 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Bell, CreditCard, Settings as SettingsIcon, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import InlineFeedback from "../../components/InlineFeedback";
 import { AuthContext, supabase } from "../../context/AuthContext";
 import { useFarm } from "../../context/FarmContext";
-import { useToast } from "../../context/ToastContext";
 import { updateUser, updateUserPreferences } from "../../services/usersApi";
 
 const tabs = [
@@ -24,8 +24,8 @@ function Settings() {
   const navigate = useNavigate();
   const { dbUser } = useContext(AuthContext);
   const { setFarmName } = useFarm();
-  const { showError, showSuccess } = useToast();
   const [activeTab, setActiveTab] = useState("account");
+  const [feedback, setFeedback] = useState(null);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [farmNameDraft, setFarmNameDraft] = useState("");
@@ -49,11 +49,12 @@ function Settings() {
   async function saveAccount() {
     if (!dbUser?.id) return;
     setSaving(true);
+    setFeedback(null);
     try {
       await updateUser(dbUser.id, { display_name: displayName, farm_name: farmNameDraft || dbUser.farm_name });
-      showSuccess("Account updated");
+      setFeedback({ type: "success", message: "Account updated" });
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
     } finally {
       setSaving(false);
     }
@@ -61,19 +62,20 @@ function Settings() {
 
   async function updatePassword() {
     if (!newPassword || newPassword !== confirmPassword) {
-      showError("New passwords must match.");
+      setFeedback({ type: "error", message: "New passwords must match." });
       return;
     }
     setSaving(true);
+    setFeedback(null);
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      showSuccess("Password updated");
+      setFeedback({ type: "success", message: "Password updated" });
     } catch (error) {
-      showError(error.message || "Password could not be updated.");
+      setFeedback({ type: "error", message: error.message || "Password could not be updated." });
     } finally {
       setSaving(false);
     }
@@ -82,13 +84,14 @@ function Settings() {
   async function saveFarm() {
     if (!dbUser?.id) return;
     setSaving(true);
+    setFeedback(null);
     try {
       const updated = await updateUser(dbUser.id, { farm_name: farmNameDraft });
       await updateUserPreferences(dbUser.id, { ...preferences, time_zone: timeZone });
       setFarmName(updated.farm_name);
-      showSuccess("Farm settings updated");
+      setFeedback({ type: "success", message: "Farm settings updated" });
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
     } finally {
       setSaving(false);
     }
@@ -97,11 +100,12 @@ function Settings() {
   async function saveNotifications() {
     if (!dbUser?.id) return;
     setSaving(true);
+    setFeedback(null);
     try {
       await updateUserPreferences(dbUser.id, preferences);
-      showSuccess("Notification preferences saved");
+      setFeedback({ type: "success", message: "Notification preferences saved" });
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
     } finally {
       setSaving(false);
     }
@@ -119,6 +123,8 @@ function Settings() {
           <p className="settings-subheader">Account, farm, notifications, and plan settings</p>
         </div>
       </header>
+
+      <InlineFeedback message={feedback?.message} type={feedback?.type} />
 
       <div className="settings-tabs" role="tablist" aria-label="Settings sections">
         {tabs.map((tab) => {

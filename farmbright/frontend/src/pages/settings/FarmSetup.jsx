@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Save, Trash2, X } from "lucide-react";
 
 import { AuthContext } from "../../context/AuthContext";
-import { useToast } from "../../context/ToastContext";
+import InlineFeedback from "../../components/InlineFeedback";
 import {
   deleteAnimalClass,
   deleteBreed,
@@ -19,18 +19,16 @@ const designations = ["layer", "breeder", "meat", "mixed"];
 
 function FarmSetup() {
   const { dbUser } = useContext(AuthContext);
-  const { showError, showSuccess } = useToast();
   const [summary, setSummary] = useState({ animal_classes: [], feed_types: [] });
   const [openPanels, setOpenPanels] = useState(new Set());
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState({});
-  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function loadSummary() {
     if (!dbUser?.id) return;
     setLoading(true);
-    setError("");
     try {
       const data = await getOnboardingSummary(dbUser.id);
       setSummary(data);
@@ -38,10 +36,11 @@ function FarmSetup() {
         if (current.size) return current;
         return new Set(data.animal_classes.map((animalClass) => animalClass.id));
       });
+      return true;
     } catch (err) {
       const message = formatError(err);
-      setError(message);
-      showError(message);
+      setFeedback({ type: "error", message });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -54,7 +53,7 @@ function FarmSetup() {
   function beginEdit(type, item) {
     setEditing({ type, id: item.id });
     setDraft({ ...item });
-    setError("");
+    setFeedback(null);
   }
 
   function cancelEdit() {
@@ -83,7 +82,7 @@ function FarmSetup() {
   }
 
   async function saveEdit(type, id) {
-    setError("");
+    setFeedback(null);
     try {
       if (type === "animalClass") {
         await updateAnimalClass(id, { name: draft.name });
@@ -109,29 +108,29 @@ function FarmSetup() {
           current_on_hand: Number(draft.current_on_hand || 0),
         });
       }
-      showSuccess("Saved changes.");
       cancelEdit();
-      await loadSummary();
+      if (await loadSummary()) {
+        setFeedback({ type: "success", message: "Saved changes." });
+      }
     } catch (err) {
       const message = formatError(err);
-      setError(message);
-      showError(message);
+      setFeedback({ type: "error", message });
     }
   }
 
   async function deleteItem(type, id) {
-    setError("");
+    setFeedback(null);
     try {
       if (type === "animalClass") await deleteAnimalClass(id);
       if (type === "breed") await deleteBreed(id);
       if (type === "flock") await deleteFlock(id);
       if (type === "feedType") await deleteFeedType(id);
-      showSuccess("Deleted.");
-      await loadSummary();
+      if (await loadSummary()) {
+        setFeedback({ type: "success", message: "Deleted." });
+      }
     } catch (err) {
       const message = formatError(err);
-      setError(message);
-      showError(message);
+      setFeedback({ type: "error", message });
     }
   }
 
@@ -144,7 +143,7 @@ function FarmSetup() {
         </div>
       </header>
 
-      {error && <div className="error-banner">{error}</div>}
+      <InlineFeedback message={feedback?.message} type={feedback?.type} />
       {loading ? <div className="panel-card">Loading farm setup...</div> : null}
 
       <div className="settings-stack">

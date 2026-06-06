@@ -2,8 +2,8 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import InlineFeedback from "../../components/InlineFeedback";
 import { FarmContext } from "../../context/FarmContext";
-import { useToast } from "../../context/ToastContext";
 import { getFlocks } from "../../services/flocksApi";
 import { createFeedAssignment, createFlock, getOnboardingSummary } from "../../services/onboardingApi";
 
@@ -12,8 +12,8 @@ const designations = ["layer", "breeder", "meat", "mixed"];
 function FlockList() {
   const navigate = useNavigate();
   const { userId } = useContext(FarmContext);
-  const { showError, showSuccess } = useToast();
   const [flocks, setFlocks] = useState([]);
+  const [feedback, setFeedback] = useState(null);
   const [setup, setSetup] = useState({ animal_classes: [], feed_types: [] });
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -28,14 +28,16 @@ function FlockList() {
   }, [setup.animal_classes]);
 
   async function refresh() {
-    if (!userId) return;
+    if (!userId) return false;
     setLoading(true);
     try {
       const [flockRows, setupRows] = await Promise.all([getFlocks(userId), getOnboardingSummary(userId)]);
       setFlocks(flockRows);
       setSetup(setupRows);
+      return true;
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -46,6 +48,7 @@ function FlockList() {
   }, [userId]);
 
   async function submitFlock(payload) {
+    setFeedback(null);
     try {
       const saved = await createFlock(payload.flock);
       await Promise.all(
@@ -53,11 +56,12 @@ function FlockList() {
           createFeedAssignment({ flock_id: saved.id, feed_type_id: feedTypeId })
         )
       );
-      showSuccess("Flock added");
       setModalOpen(false);
-      await refresh();
+      if (await refresh()) {
+        setFeedback({ type: "success", message: "Flock added" });
+      }
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
     }
   }
 
@@ -73,6 +77,8 @@ function FlockList() {
           Add Flock
         </button>
       </header>
+
+      <InlineFeedback message={feedback?.message} type={feedback?.type} />
 
       {loading ? <div className="panel-card">Loading flocks...</div> : null}
 

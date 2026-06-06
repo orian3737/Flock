@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { useToast } from "../../context/ToastContext";
+import InlineFeedback from "../../components/InlineFeedback";
 import { getFlockDetail, logCasualty, logProduction } from "../../services/flocksApi";
 
 const todayString = () => new Date().toISOString().slice(0, 10);
@@ -10,8 +10,8 @@ const todayString = () => new Date().toISOString().slice(0, 10);
 function FlockDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { showError, showSuccess } = useToast();
   const [detail, setDetail] = useState(null);
+  const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
 
@@ -23,8 +23,10 @@ function FlockDetail() {
     setLoading(true);
     try {
       setDetail(await getFlockDetail(id));
+      return true;
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -35,24 +37,28 @@ function FlockDetail() {
   }, [id]);
 
   async function submitProduction(payload) {
+    setFeedback(null);
     try {
       await logProduction(id, payload);
-      showSuccess("Production logged");
       setModal(null);
-      await refresh();
+      if (await refresh()) {
+        setFeedback({ type: "success", message: "Production logged" });
+      }
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
     }
   }
 
   async function submitCasualty(payload) {
+    setFeedback(null);
     try {
       await logCasualty(id, payload);
-      showSuccess("Headcount updated");
       setModal(null);
-      await refresh();
+      if (await refresh()) {
+        setFeedback({ type: "success", message: "Headcount updated" });
+      }
     } catch (error) {
-      showError(formatError(error));
+      setFeedback({ type: "error", message: formatError(error) });
     }
   }
 
@@ -95,6 +101,8 @@ function FlockDetail() {
           </button>
         </div>
       </header>
+
+      <InlineFeedback message={feedback?.message} type={feedback?.type} />
 
       <div className="flock-stats-bar">
         <StatCard label="Current Headcount" value={formatNumber(flock.current_headcount)} />
