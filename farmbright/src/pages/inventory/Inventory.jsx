@@ -416,6 +416,20 @@ function TransactionHistory({ rows, unit }) {
   );
 }
 
+function FormField({ hint, id, label, children }) {
+  return (
+    <label className="grid gap-1.5" htmlFor={id}>
+      <div>
+        <p className="text-[var(--text-primary)] text-[13px] font-semibold m-0">{label}</p>
+        {hint ? <p className="text-[var(--text-muted)] text-[11px] m-0 mt-0.5 leading-snug">{hint}</p> : null}
+      </div>
+      {children}
+    </label>
+  );
+}
+
+const inputCls = "bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[40px] outline-none py-2 px-[10px] w-full focus:border-[var(--accent-primary)] focus:[box-shadow:0_0_0_2px_rgba(76,175,80,0.18)]";
+
 function PurchaseModal({ feed, onClose, onSubmit }) {
   const [numBags, setNumBags]     = useState("1");
   const [bagWeight, setBagWeight] = useState(feed.bag_weight || 50);
@@ -441,18 +455,106 @@ function PurchaseModal({ feed, onClose, onSubmit }) {
 
   return (
     <ModalFrame title={`Purchase ${feed.name}`} onClose={onClose}>
-      <form className="grid gap-3" onSubmit={submit}>
-        <label className="field">How many bags?<input min="0" required step="1" type="number" value={numBags} onChange={(e) => setNumBags(e.target.value)} /></label>
-        <label className="field">Bag weight ({feed.unit})<input min="0" required step="0.01" type="number" value={bagWeight} onChange={(e) => setBagWeight(e.target.value)} /></label>
-        <label className="field">Bag price<input min="0" required step="0.01" type="number" value={bagPrice} onChange={(e) => setBagPrice(e.target.value)} /></label>
-        <label className="field">Date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-        <label className="field">Supplier<input value={supplier} onChange={(e) => setSupplier(e.target.value)} /></label>
-        <div className="bg-[var(--bg-base)] border border-[rgba(46,125,50,0.65)] rounded-lg grid gap-1.5 p-2.5">
-          <span className="text-[var(--text-muted)] text-xs">Total added: {formatNumber(totalAdded)} {feed.unit}</span>
-          <span className="text-[var(--text-muted)] text-xs">Cost per lb: {formatMoney(costPerLb)}</span>
-          <span className="text-[var(--text-muted)] text-xs">Total cost: {formatMoney(totalCost)}</span>
+      <form className="grid gap-4" onSubmit={submit}>
+        <FormField
+          id="num-bags"
+          label="Number of Bags"
+          hint="How many bags did you purchase?"
+        >
+          <input
+            id="num-bags"
+            className={inputCls}
+            min="1"
+            required
+            step="1"
+            type="number"
+            value={numBags}
+            onChange={(e) => setNumBags(e.target.value)}
+          />
+        </FormField>
+
+        <FormField
+          id="bag-weight"
+          label={`Bag Weight (${feed.unit})`}
+          hint={`Weight of a single bag in ${feed.unit}`}
+        >
+          <input
+            id="bag-weight"
+            className={inputCls}
+            min="0"
+            required
+            step="0.01"
+            type="number"
+            value={bagWeight}
+            onChange={(e) => setBagWeight(e.target.value)}
+          />
+        </FormField>
+
+        <FormField
+          id="bag-price"
+          label="Price per Bag ($)"
+          hint="Cost of one bag — used to compute your cost per lb"
+        >
+          <input
+            id="bag-price"
+            className={inputCls}
+            min="0"
+            required
+            step="0.01"
+            type="number"
+            value={bagPrice}
+            onChange={(e) => setBagPrice(e.target.value)}
+          />
+        </FormField>
+
+        <FormField
+          id="purchase-date"
+          label="Purchase Date"
+          hint="When did you receive this order?"
+        >
+          <input
+            id="purchase-date"
+            className={inputCls}
+            required
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </FormField>
+
+        <FormField
+          id="supplier"
+          label="Supplier"
+          hint="Vendor or store name (optional)"
+        >
+          <input
+            id="supplier"
+            className={inputCls}
+            placeholder="e.g. Southern States, Tractor Supply"
+            value={supplier}
+            onChange={(e) => setSupplier(e.target.value)}
+          />
+        </FormField>
+
+        <div className="bg-[var(--bg-base)] border border-[rgba(46,125,50,0.65)] rounded-lg p-3 grid gap-2">
+          <p className="text-[var(--text-secondary)] text-[11px] font-semibold uppercase tracking-wide m-0">Order Summary</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <p className="text-[var(--text-muted)] text-[11px] m-0">Total added</p>
+              <p className="text-[var(--text-primary)] text-[13px] font-bold m-0 number-font">{formatNumber(totalAdded)} {feed.unit}</p>
+            </div>
+            <div>
+              <p className="text-[var(--text-muted)] text-[11px] m-0">Cost per lb</p>
+              <p className="text-[var(--text-primary)] text-[13px] font-bold m-0 number-font">{formatMoney(costPerLb)}</p>
+            </div>
+            <div>
+              <p className="text-[var(--text-muted)] text-[11px] m-0">Total cost</p>
+              <p className="text-[var(--accent-primary)] text-[13px] font-bold m-0 number-font">{formatMoney(totalCost)}</p>
+            </div>
+          </div>
         </div>
-        <button className="primary-button full-width" type="submit">Save Purchase</button>
+
+        <button className="primary-button w-full" type="submit">Save Purchase</button>
       </form>
     </ModalFrame>
   );
@@ -463,6 +565,8 @@ function AdjustmentModal({ feed, onClose, onSubmit }) {
   const [reason, setReason]                 = useState("");
   const [date, setDate]                     = useState(todayString());
 
+  const newBalance = (Number(feed.current_on_hand) || 0) + (Number(quantityChange) || 0);
+
   function submit(event) {
     event.preventDefault();
     onSubmit({ feed_type_id: feed.id, quantity_change: Number(quantityChange), reason, date });
@@ -470,18 +574,70 @@ function AdjustmentModal({ feed, onClose, onSubmit }) {
 
   return (
     <ModalFrame title={`Adjust ${feed.name}`} onClose={onClose}>
-      <form className="grid gap-3" onSubmit={submit}>
-        <div className="warn-banner">This directly modifies your on-hand balance</div>
-        <label className="field">
-          Quantity change (+/-)
-          <input required step="0.01" type="number" value={quantityChange} onChange={(e) => setQuantityChange(e.target.value)} />
-        </label>
-        <label className="field">
-          Reason
-          <textarea required value={reason} onChange={(e) => setReason(e.target.value)} className="min-h-[96px] resize-y" />
-        </label>
-        <label className="field">Date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-        <button className="primary-button full-width" type="submit">Save Adjustment</button>
+      <form className="grid gap-4" onSubmit={submit}>
+        <div className="warn-banner">
+          <AlertTriangle size={15} aria-hidden="true" className="flex-none" />
+          This directly modifies your on-hand balance — use for corrections and physical counts only.
+        </div>
+
+        <FormField
+          id="qty-change"
+          label="Quantity Change"
+          hint={`Use a positive number to add stock, negative to remove it. Current on-hand: ${formatNumber(feed.current_on_hand)} ${feed.unit}`}
+        >
+          <input
+            id="qty-change"
+            className={inputCls}
+            required
+            step="0.01"
+            type="number"
+            placeholder="e.g. +50 or -25"
+            value={quantityChange}
+            onChange={(e) => setQuantityChange(e.target.value)}
+          />
+        </FormField>
+
+        {quantityChange !== "" ? (
+          <div className={`rounded-lg border px-3 py-2 text-[13px] font-semibold number-font ${
+            newBalance >= 0
+              ? "bg-[rgba(76,175,80,0.12)] border-[rgba(76,175,80,0.5)] text-[var(--accent-primary)]"
+              : "bg-[rgba(198,40,40,0.12)] border-[rgba(198,40,40,0.5)] text-[var(--accent-danger)]"
+          }`}>
+            New balance: {formatNumber(newBalance)} {feed.unit}
+          </div>
+        ) : null}
+
+        <FormField
+          id="adj-reason"
+          label="Reason for Adjustment"
+          hint="Required for audit trail — briefly explain why this adjustment is needed"
+        >
+          <textarea
+            id="adj-reason"
+            className={`${inputCls} min-h-[96px] resize-y`}
+            required
+            placeholder="e.g. Physical count correction, spilled bag, damaged stock…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </FormField>
+
+        <FormField
+          id="adj-date"
+          label="Adjustment Date"
+          hint="When did this adjustment occur?"
+        >
+          <input
+            id="adj-date"
+            className={inputCls}
+            required
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </FormField>
+
+        <button className="primary-button w-full" type="submit">Save Adjustment</button>
       </form>
     </ModalFrame>
   );
@@ -491,20 +647,20 @@ function ModalFrame({ children, onClose, title }) {
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.45)] p-[18px] w-full max-w-[460px] max-h-[calc(100vh-40px)] overflow-auto"
+        className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.45)] p-5 w-full max-w-[480px] max-h-[calc(100vh-40px)] overflow-auto"
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <header className="flex items-center justify-between gap-3 mb-4">
+        <header className="flex items-center justify-between gap-3 mb-5">
           <h2 className="display-font text-2xl leading-none m-0">{title}</h2>
           <button
-            className="icon-button h-[34px] w-[34px] p-0"
+            className="inline-flex items-center justify-center h-10 w-10 rounded-lg border border-[var(--border)] bg-transparent text-[var(--text-secondary)] hover:border-[var(--accent-danger)] hover:text-[var(--accent-danger)] transition-colors flex-none p-0"
             type="button"
             onClick={onClose}
             aria-label="Close modal"
           >
-            <X size={18} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </header>
         {children}
