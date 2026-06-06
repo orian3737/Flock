@@ -119,7 +119,7 @@ function Settings() {
   }
 
   return (
-    <section className="settings-page admin-settings-page">
+    <section className="settings-page">
       <header className="page-header">
         <div>
           <h1 className="display-font">Settings</h1>
@@ -148,7 +148,7 @@ function Settings() {
       </div>
 
       {activeTab === "account" ? (
-        <section className="settings-panel admin-settings-panel">
+        <section className="panel-card grid gap-4">
           <h2 className="display-font">Account Settings</h2>
           <div className="settings-form-grid">
             <label className="field">
@@ -187,7 +187,7 @@ function Settings() {
       ) : null}
 
       {activeTab === "farm" ? (
-        <section className="settings-panel admin-settings-panel">
+        <section className="panel-card grid gap-4">
           <h2 className="display-font">Farm Settings</h2>
           <div className="settings-form-grid">
             <label className="field">
@@ -217,7 +217,7 @@ function Settings() {
       ) : null}
 
       {activeTab === "notifications" ? (
-        <section className="settings-panel admin-settings-panel">
+        <section className="panel-card grid gap-4">
           <h2 className="display-font">Notifications</h2>
           <div className="toggle-list">
             <ToggleRow
@@ -246,7 +246,7 @@ function Settings() {
       ) : null}
 
       {activeTab === "billing" ? (
-        <section className="settings-panel admin-settings-panel billing-panel">
+        <section className="panel-card grid gap-4">
           <h2 className="display-font">Billing & Plan</h2>
           <div className="billing-card">
             <div>
