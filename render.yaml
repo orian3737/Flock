@@ -9,5 +9,3 @@ services:
     envVars:
       - key: FLASK_ENV
         value: production
-      - key: FRONTEND_ORIGINS
-        value: https://orian3737.github.io,http://localhost:5173
