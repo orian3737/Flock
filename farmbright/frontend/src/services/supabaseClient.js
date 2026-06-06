@@ -12,5 +12,13 @@ export const isSupabaseConfigured = Boolean(
 
 export const supabase = createClient(
   isSupabaseConfigured ? rawSupabaseUrl : "https://placeholder.supabase.co",
-  isSupabaseConfigured ? rawSupabaseKey : "placeholder-anon-key"
+  isSupabaseConfigured ? rawSupabaseKey : "placeholder-anon-key",
+  {
+    auth: {
+      storageKey: "flock-auth-token",
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
 );

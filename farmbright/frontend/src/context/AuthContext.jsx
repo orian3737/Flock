@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { getOnboardingSummary } from "../services/onboardingApi";
+import { clearLocalAuthState } from "../services/authStorage";
 import { isSupabaseConfigured, supabase } from "../services/supabaseClient";
 import { createUser, getUserByUid } from "../services/usersApi";
 
@@ -47,14 +48,38 @@ export function AuthProvider({ children }) {
 
     async function loadSession() {
       setLoading(true);
-      const { data } = await supabase.auth.getSession();
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          clearLocalAuthState();
+          await loadDbUser(null);
+        } else if (isMounted) {
+          await loadDbUser(data.session?.user || null);
+        }
+      } catch {
+        clearLocalAuthState();
+        if (isMounted) {
+          await loadDbUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    function handleAuthExpired() {
+      clearLocalAuthState();
       if (isMounted) {
-        await loadDbUser(data.session?.user || null);
+        setUser(null);
+        setDbUser(null);
+        setIsOnboarded(false);
         setLoading(false);
       }
     }
 
     loadSession();
+    window.addEventListener("flock:auth-expired", handleAuthExpired);
 
     const {
       data: { subscription },
@@ -66,6 +91,7 @@ export function AuthProvider({ children }) {
 
     return () => {
       isMounted = false;
+      window.removeEventListener("flock:auth-expired", handleAuthExpired);
       subscription.unsubscribe();
     };
   }, [loadDbUser]);
@@ -117,8 +143,9 @@ export function AuthProvider({ children }) {
   async function signOut() {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) throw error;
+      clearLocalAuthState();
       setUser(null);
       setDbUser(null);
       setIsOnboarded(false);
