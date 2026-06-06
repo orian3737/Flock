@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -16,8 +18,9 @@ from config import config_by_name
 _scheduler = None
 
 
-def create_app(config_name="development"):
+def create_app(config_name=None):
     app = Flask(__name__)
+    config_name = config_name or os.getenv("FLASK_ENV", "development")
     app.config.from_object(config_by_name.get(config_name, config_by_name["development"]))
 
     db.init_app(app)
