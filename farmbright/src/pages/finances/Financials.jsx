@@ -39,30 +39,36 @@ function Financials() {
   const [sort, setSort]               = useState({ field: "net_pl", direction: "asc" });
   const [modalOpen, setModalOpen]     = useState(false);
   const [loading, setLoading]         = useState(true);
+  const [refreshing, setRefreshing]   = useState(false);
   const [error, setError]             = useState("");
 
   const params = period === "custom" ? customRange : rangeFor(period);
 
-  async function refresh() {
+  async function refresh(isInitial = false) {
     if (!userId) { setLoading(false); return; }
+    if (isInitial) setLoading(true); else setRefreshing(true);
+    setError("");
     try {
       const [summaryData, flockData, queueData] = await Promise.all([
-        getFinancialSummary(userId, params),
-        getFlockFinancials(userId, params),
+        getFinancialSummary(params),
+        getFlockFinancials(params),
         getQueue(userId),
       ]);
       setSummary(summaryData);
       setFlocks(flockData);
       setQueue(queueData);
-      setError("");
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Financials could not be loaded.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  useEffect(() => { refresh(); }, [userId, period, customRange.start_date, customRange.end_date]);
+  useEffect(() => { refresh(true); }, [userId]);
+  useEffect(() => {
+    if (!loading) refresh(false);
+  }, [period, customRange.start_date, customRange.end_date]);
 
   const avgCostPerBird = useMemo(() => {
     const headcount = flocks.reduce((sum, f) => sum + Number(f.headcount || 0), 0);
@@ -90,13 +96,13 @@ function Financials() {
   async function submitRevenue(payload) {
     await createRevenue({ ...payload, user_id: userId });
     setModalOpen(false);
-    await refresh();
+    await refresh(false);
   }
 
   if (loading) return <section className="panel-card">Loading financials...</section>;
 
   return (
-    <section className="grid gap-4 pb-20">
+    <section className={`grid gap-4 pb-20 transition-opacity duration-150 ${refreshing ? "opacity-60 pointer-events-none" : ""}`}>
       <header className="sticky top-14 lg:top-0 z-[4] flex flex-wrap items-start justify-between gap-3 bg-[rgba(15,26,15,0.92)] border-b border-[var(--border)] pb-3">
         <div>
           <p className="eyebrow">Farm economics</p>
