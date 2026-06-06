@@ -121,8 +121,7 @@ function Dashboard() {
       ) : null}
 
       <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: feedingPanelState === "compact" ? "280px minmax(0,1fr)" : "380px minmax(0,1fr)" }}
+        className={`grid gap-4 ${feedingPanelState === "compact" ? "lg:[grid-template-columns:280px_minmax(0,1fr)]" : "lg:[grid-template-columns:380px_minmax(0,1fr)]"}`}
       >
         <aside
           className="bg-[var(--bg-surface)] border-r border-[var(--border)] rounded-lg flex flex-col gap-4 min-w-0 p-5"
@@ -187,32 +186,32 @@ function Dashboard() {
           </button>
         </aside>
 
-        <div className="grid grid-cols-2 gap-4 content-start">
+        <div className="grid grid-cols-2 gap-4 content-start min-w-0">
           <article
-            className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[188px] p-5"
+            className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[140px] lg:min-h-[188px] p-4 lg:p-5 min-w-0"
             style={{ borderLeftColor: "var(--accent-danger)" }}
           >
-            <div className="number-font text-[36px] font-bold leading-none break-words">{formatMoney(today.total_feed_cost)}</div>
+            <div className="number-font text-[22px] lg:text-[36px] font-bold leading-none break-all">{formatMoney(today.total_feed_cost)}</div>
             <div className="text-[var(--text-secondary)] text-xs uppercase">Feed Cost Today</div>
             <p className="text-[var(--text-muted)] text-xs m-0">Yesterday: {formatMoney(yesterday.total_feed_cost)}</p>
           </article>
 
           {hasProduction ? (
             <article
-              className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[188px] p-5"
+              className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[140px] lg:min-h-[188px] p-4 lg:p-5 min-w-0"
               style={{ borderLeftColor: "var(--accent-primary)" }}
             >
-              <div className="number-font text-[36px] font-bold leading-none break-words">{formatNumber(today.total_eggs)}</div>
+              <div className="number-font text-[22px] lg:text-[36px] font-bold leading-none break-all">{formatNumber(today.total_eggs)}</div>
               <div className="text-[var(--text-secondary)] text-xs uppercase">Eggs Collected</div>
               <p className="text-[var(--text-muted)] text-xs m-0">Yesterday: {formatNumber(yesterday.total_eggs)}</p>
             </article>
           ) : null}
 
           <article
-            className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[188px] p-5"
+            className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[140px] lg:min-h-[188px] p-4 lg:p-5 min-w-0"
             style={{ borderLeftColor: flocksFedTone }}
           >
-            <div className="number-font text-[36px] font-bold leading-none break-words">
+            <div className="number-font text-[22px] lg:text-[36px] font-bold leading-none break-all">
               {fedCount} / {totalFlocks}
             </div>
             <div className="text-[var(--text-secondary)] text-xs uppercase">Flocks Fed Today</div>
@@ -225,11 +224,11 @@ function Dashboard() {
           </article>
 
           <article
-            className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[188px] p-5"
+            className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[140px] lg:min-h-[188px] p-4 lg:p-5 min-w-0"
             style={{ borderLeftColor: pnlPositive ? "var(--accent-primary)" : "var(--accent-danger)" }}
           >
             <div
-              className="number-font text-[36px] font-bold leading-none break-words"
+              className="number-font text-[22px] lg:text-[36px] font-bold leading-none break-all"
               style={{ color: pnlPositive ? "var(--accent-primary)" : "var(--accent-danger)" }}
             >
               {formatSignedMoney(yesterday.net_pl)}
@@ -239,7 +238,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,1.2fr) minmax(300px,0.8fr)" }}>
+      <div className="grid gap-4 lg:[grid-template-columns:minmax(0,1.2fr)_minmax(300px,0.8fr)]">
         <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg min-w-0 p-3.5">
           <div className="flex gap-2.5 overflow-x-auto pb-0.5">
             {overview?.feed_stocks?.length ? (

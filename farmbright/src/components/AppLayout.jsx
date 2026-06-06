@@ -4,13 +4,15 @@ import {
   Download,
   LayoutDashboard,
   LogOut,
+  Menu,
   Package,
   Scale,
   Settings,
   TrendingUp,
   Tractor,
+  X,
 } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { useFarm } from "../context/FarmContext";
@@ -29,18 +31,20 @@ const navItems = [
 
 function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signOut } = useAuth();
   const { farmName, userId } = useFarm();
   const [unfedCount, setUnfedCount] = useState(0);
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Close drawer on navigation
+  useEffect(() => { setNavOpen(false); }, [location.pathname]);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadBadge() {
-      if (!userId) {
-        setUnfedCount(0);
-        return;
-      }
+      if (!userId) { setUnfedCount(0); return; }
       try {
         const queue = await getQueue(userId);
         if (mounted) setUnfedCount(queue.filter((f) => !f.fed_today).length);
@@ -63,21 +67,57 @@ function AppLayout() {
   }
 
   return (
-    <div className="grid min-h-screen" style={{ gridTemplateColumns: "240px minmax(0,1fr)" }}>
+    <div className="lg:grid min-h-screen" style={{ gridTemplateColumns: "240px minmax(0,1fr)" }}>
+
+      {/* ── Mobile top bar (hidden on desktop) ── */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-[60] flex items-center gap-3 h-14 px-4 bg-base-200 border-b border-[var(--border)]">
+        <button
+          className="inline-flex items-center justify-center bg-transparent border-0 text-[var(--text-secondary)] h-9 w-9 p-0 flex-none"
+          type="button"
+          aria-label="Open menu"
+          onClick={() => setNavOpen(true)}
+        >
+          <Menu size={22} />
+        </button>
+        <span className="display-font text-[22px] leading-none text-[var(--text-primary)]">Flock</span>
+        <span className="text-[var(--text-muted)] text-xs truncate min-w-0">{farmName || "Flock Farm"}</span>
+      </div>
+
+      {/* ── Backdrop (mobile only, when drawer open) ── */}
+      {navOpen ? (
+        <div
+          className="lg:hidden fixed inset-0 z-[55] bg-black/60"
+          aria-hidden="true"
+          onClick={() => setNavOpen(false)}
+        />
+      ) : null}
+
+      {/* ── Sidebar / drawer ── */}
       <aside
-        className="bg-base-200 border-r border-[var(--border)] fixed top-0 left-0 flex flex-col h-screen w-60 px-4 py-6"
+        className={[
+          "bg-base-200 border-r border-[var(--border)] fixed top-0 left-0 flex flex-col h-screen w-60 px-4 py-6",
+          "z-[60] transition-transform duration-200",
+          "lg:z-auto lg:translate-x-0",
+          navOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
         style={{ gap: "2rem" }}
       >
-        <div>
-          <div className="display-font text-[30px] leading-none text-[var(--text-primary)]">
-            Flock
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="display-font text-[30px] leading-none text-[var(--text-primary)]">Flock</div>
+            <div className="text-[var(--text-secondary)] text-xs mt-2">{farmName || "Flock Farm"}</div>
           </div>
-          <div className="text-[var(--text-secondary)] text-xs mt-2">
-            {farmName || "Flock Farm"}
-          </div>
+          <button
+            className="lg:hidden inline-flex items-center justify-center bg-transparent border-0 text-[var(--text-secondary)] h-9 w-9 p-0 flex-none mt-1"
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setNavOpen(false)}
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <nav className="grid gap-2 flex-1" aria-label="Primary">
+        <nav className="grid gap-1.5 flex-1 overflow-y-auto" aria-label="Primary">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -114,8 +154,10 @@ function AppLayout() {
         </button>
       </aside>
 
-      <main className="bg-base-100 col-start-2 min-h-screen p-6">
-        <div className="max-w-[1400px]">
+      {/* ── Main content ── */}
+      {/* pt-20 reserves space below the fixed mobile top bar (h-14=56px + p-6=24px) */}
+      <main className="bg-base-100 lg:col-start-2 min-h-screen p-6 pt-20 lg:pt-6">
+        <div className="max-w-[1400px] mx-auto">
           <Outlet />
         </div>
       </main>

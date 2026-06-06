@@ -97,7 +97,7 @@ function Financials() {
 
   return (
     <section className="grid gap-4 pb-20">
-      <header className="sticky top-0 z-[4] flex items-center justify-between gap-4 bg-[rgba(15,26,15,0.92)] border-b border-[var(--border)] pb-3">
+      <header className="sticky top-14 lg:top-0 z-[4] flex flex-wrap items-start justify-between gap-3 bg-[rgba(15,26,15,0.92)] border-b border-[var(--border)] pb-3">
         <div>
           <p className="eyebrow">Farm economics</p>
           <h1 className="display-font text-[32px] leading-none m-0">Financials</h1>
@@ -138,7 +138,7 @@ function Financials() {
 
       {error ? <div className="error-banner">{error}</div> : null}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Kpi label="Feed Cost"     value={formatMoney(summary?.total_feed_cost)} tone="var(--accent-danger)" />
         <Kpi label="Revenue"       value={formatMoney(summary?.total_revenue)}   tone="var(--accent-primary)" />
         <Kpi
@@ -149,7 +149,7 @@ function Financials() {
         <Kpi label="Avg Cost/Bird" value={formatMoney(avgCostPerBird)}           tone="var(--border)" />
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
+      <div className="grid gap-4 lg:[grid-template-columns:3fr_2fr]">
         <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg min-w-0 p-4">
           <h2 className="text-[var(--text-secondary)] text-[13px] m-0 mb-3 uppercase" style={{ fontFamily: "IBM Plex Mono, monospace" }}>
             Daily Feed Cost vs Revenue
@@ -272,7 +272,7 @@ function Kpi({ label, tone, value }) {
       className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2 p-[18px]"
       style={{ borderLeftColor: tone }}
     >
-      <strong className="number-font text-[36px] leading-none break-words" style={{ color: tone }}>{value}</strong>
+      <strong className="number-font text-[22px] lg:text-[36px] leading-none break-all min-w-0" style={{ color: tone }}>{value}</strong>
       <span className="text-[var(--text-secondary)] text-xs uppercase">{label}</span>
     </article>
   );

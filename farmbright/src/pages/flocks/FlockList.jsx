@@ -83,7 +83,7 @@ function FlockList() {
         </div>
       ) : null}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
         {flocks.map((flock) => (
           <button
             className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] cursor-pointer grid gap-3.5 min-h-[260px] p-4 text-left transition-all duration-150 hover:border-[var(--accent-primary)] hover:-translate-y-px hover:shadow-[0_0_0_1px_rgba(76,175,80,0.26)]"

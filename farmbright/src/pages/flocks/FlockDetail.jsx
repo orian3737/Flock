@@ -96,7 +96,7 @@ function FlockDetail() {
 
       <InlineFeedback message={feedback?.message} type={feedback?.type} />
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <StatCard label="Current Headcount" value={formatNumber(flock.current_headcount)} />
         <StatCard label="All-time Feed Cost" value={formatMoney(stats.total_feed_cost_alltime)} />
         {showProduction ? <StatCard label="All-time Eggs" value={formatNumber(stats.total_eggs_alltime)} /> : null}
@@ -108,10 +108,7 @@ function FlockDetail() {
         ) : null}
       </div>
 
-      <div
-        className="grid gap-[18px] items-start"
-        style={{ gridTemplateColumns: "minmax(0,1fr) 320px" }}
-      >
+      <div className="grid gap-[18px] items-start lg:[grid-template-columns:minmax(0,1fr)_320px]">
         <div className="grid gap-3.5">
           <section className="settings-panel">
             <div className="section-title-row" style={{ padding: "14px 18px" }}>

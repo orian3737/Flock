@@ -148,7 +148,7 @@ function Inventory() {
         </section>
       ) : null}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
         {feeds.map((feed) => (
           <article className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg grid gap-4 min-w-0 p-4" key={feed.id}>
             <header className="flex items-start gap-3 justify-between">

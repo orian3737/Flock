@@ -440,7 +440,7 @@ function ScaleHouse() {
       {isDailyMode ? (
         // scale-bottom-nav: fixed bottom-0 left-[240px] right-0 z-[5] flex items-center justify-between gap-3 bg-[rgba(15,26,15,0.95)] border-t border-[--border] py-[14px] px-6
         // on <=980px: left-0 sticky
-        <div className="fixed bottom-0 left-[240px] right-0 max-[980px]:left-0 max-[980px]:static z-[5] flex items-center justify-between gap-3 bg-[rgba(15,26,15,0.95)] border-t border-[var(--border)] py-[14px] px-6">
+        <div className="fixed bottom-0 left-0 lg:left-[240px] right-0 z-[5] flex items-center justify-between gap-3 bg-[rgba(15,26,15,0.95)] border-t border-[var(--border)] py-[14px] px-6">
           <button className="secondary-button" type="button" onClick={handleSkip}>
             Skip - feed later
           </button>
@@ -898,7 +898,7 @@ function TodayLogPanel({ eventsData, onDelete }) {
   return (
     // today-log-panel: bg-[--bg-surface] border border-[--border] rounded-lg min-w-0 p-[18px] grid gap-[14px] sticky top-6
     // <=980px: position static
-    <aside className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg min-w-0 p-[18px] grid gap-[14px] sticky top-6 max-[980px]:static">
+    <aside className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg min-w-0 p-[18px] grid gap-[14px] max-[980px]:static sticky top-14 lg:top-6">
       <header>
         {/* h2: text-[20px] leading-none m-0 */}
         <h2 className="display-font text-[20px] leading-none m-0">Today's Log</h2>
