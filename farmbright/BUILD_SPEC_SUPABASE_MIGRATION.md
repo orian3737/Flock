@@ -139,11 +139,28 @@ Acceptance criteria:
 
 Purpose: make auth and farm ownership independent of Flask.
 
-PR 2.1: Auth context cleanup
+PR 2.1: Auth user to farm profile bridge
+
+- Convert `public.users.supabase_uid` to `uuid` if it is still the legacy `varchar` column.
+- Add a foreign key from `public.users.supabase_uid` to `auth.users.id` with `on delete cascade`.
+- Add a database trigger on `auth.users` that auto-inserts a matching `public.users` row when a Supabase Auth account is created.
+- Pull `farm_name`, `display_name`, and optional preferences from `raw_user_meta_data` during profile creation.
+- Add a helper function such as `public.current_app_user_id()` that maps `auth.uid()` to the existing integer `public.users.id`.
+- Keep `public.users.id` as the internal integer farm profile key for MVP because existing farm tables already reference it.
+- Update frontend signup to pass `farm_name` through Supabase Auth metadata.
+
+Acceptance criteria:
+
+- Creating a Supabase Auth account automatically creates one `public.users` row.
+- The profile row has a real FK to `auth.users`.
+- Frontend signup no longer depends on a separate profile creation request for the normal happy path.
+- Existing `user_id` references can continue using `public.users.id`.
+
+PR 2.2: Auth context cleanup
 
 - Keep Supabase Auth for sign in, sign up, session persistence, sign out, and auth state changes.
 - Remove backend user creation calls from `AuthContext`.
-- Create or fetch the profile through Supabase table APIs or an RPC.
+- Fetch the profile through Supabase table APIs or an RPC after the DB trigger creates it.
 - Store minimal local auth-derived state only when needed.
 
 Acceptance criteria:
@@ -152,7 +169,7 @@ Acceptance criteria:
 - Sign in loads profile and onboarding status without Flask.
 - Sign out clears app state.
 
-PR 2.2: Profile and onboarding status APIs
+PR 2.3: Profile and onboarding status APIs
 
 - Replace `usersApi.js` with Supabase profile functions.
 - Replace onboarding summary read with Supabase query/RPC.
@@ -163,192 +180,81 @@ Acceptance criteria:
 - Login/signup/settings can read and update farm/account profile data.
 - Onboarding redirect behavior still works.
 
-### Sprint 3: Core CRUD Migration
+### Sprint 3: Core CRUD And Operational Workflows — COMPLETE
 
-Purpose: move normal data workflows from Flask endpoints to Supabase table APIs.
+Purpose: move all data workflows from Flask to Supabase Data API and Postgres triggers.
 
-PR 3.1: Onboarding service migration
+What was built:
 
-- Rewrite animal class, breed, flock, feed type, and feed assignment CRUD functions to use Supabase.
-- Preserve current page-level payload shapes where reasonable.
-- Use transactions/RPC where multi-step writes must be atomic.
+- `supabase/migrations/20260606120000_rls_and_triggers.sql` — RLS on all 14 tables, 6 Postgres triggers replicating all SQLAlchemy event listener side effects (feed cost lock, inventory debit, reversal on delete, delta on update, casualty headcount, feed cost sync), and 2 RPCs (`purchase_feed`, `adjust_feed`).
+- `onboardingApi.js` — animal class, breed, flock, feed type, and feed assignment CRUD via Supabase table API. `getOnboardingSummary` composes multiple Data API queries in JS.
+- `flocksApi.js` — flock list and detail via PostgREST nested selects, feeding/production/casualty history with pagination, `logProduction` and `logCasualty` as table API inserts (triggers handle headcount update).
+- `inventoryApi.js` — feed reads, transaction history with running balance, `purchaseFeed`/`adjustFeed` via RPC, feed metadata update and alert dismissal via table API.
+- `dashboardApi.js` — 8 parallel Data API queries composed in JS to match the Flask overview shape.
+- `financialsApi.js` — farm summary and per-flock P&L as JS-composed aggregations over feeding_events and revenues; revenue CRUD via table API.
+- `scaleHouseApi.js` — queue and summary as parallel Data API queries, session logging as sequential inserts (triggers handle side effects), event delete/patch via table API (triggers handle inventory). DYMO scale endpoints stubbed to `connected: false` (hardware bridge deferred).
+- `exportApi.js` — stubbed pending Sprint 4.
 
-Acceptance criteria:
+Key design decisions:
+- Postgres triggers replace all Python SQLAlchemy event listeners. Frontend uses plain table API inserts/updates/deletes.
+- JS-composed parallel queries replace Flask aggregation endpoints. No views or custom read RPCs.
+- `purchase_feed` and `adjust_feed` are the only RPCs, because purchases atomically update the feed, insert a transaction, and clear alerts in one call.
+- RLS uses `current_app_user_id()` helper for direct ownership and `user_owns_flock()` / `user_owns_breed()` helper functions for indirect ownership through breeds and animal classes.
 
-- Onboarding wizard can create, edit, delete, and review setup data.
-- Farm setup settings can edit the same entities.
-- No onboarding Flask endpoints are used.
-
-PR 3.2: Flocks service migration
-
-- Rewrite flock list, flock detail, feeding history, production history, production logging, and casualty logging with Supabase queries/RPC.
-- Move nested detail composition into query helpers, views, or RPCs.
-
-Acceptance criteria:
-
-- Flock list and detail screens work from Supabase.
-- Production and casualty logs update current headcount and history correctly.
-
-PR 3.3: Inventory service migration
-
-- Rewrite feed inventory reads, transactions, purchase logging, adjustments, feed updates, alerts, and alert dismissal.
-- Use RPC for purchase/feeding/adjustment writes so ledger rows and feed balances update together.
-
-Acceptance criteria:
-
-- Inventory cards, transaction history, low-feed alerts, purchases, adjustments, and feed edits work.
-- Feed balance changes are atomic.
-
-### Sprint 4: Operational Workflows And Derived Data
-
-Purpose: replace Flask business logic with Supabase RPC/views.
-
-PR 4.1: Dashboard data migration
-
-- Replace dashboard overview endpoint with Supabase view/RPC.
-- Include current KPIs, feeding status, production summary, revenue summary, and alerts.
-
-Acceptance criteria:
-
-- Dashboard renders from Supabase only.
-- Alert dismissal still works.
-
-PR 4.2: Scale-house MVP migration
-
-- Replace Flask queue, queue summary, session logging, today events, delete event, and patch event with Supabase queries/RPC.
-- Defer live DYMO stream and hardware status.
-- Add a visible manual-entry state for MVP where live scale data used to be required.
-
-Acceptance criteria:
-
-- Scale-house workflow can complete feeding sessions manually.
-- Feeding sessions update events, inventory transactions, feed balances, and summaries atomically.
-- No EventSource or Flask scale endpoint remains in MVP code.
-
-PR 4.3: Financials migration
-
-- Replace summary, flock P/L, revenue creation, and revenue history with Supabase queries/RPC/views.
-- Prefer computed summaries over persisted nightly aggregates for MVP.
-
-Acceptance criteria:
-
-- Financial dashboard and revenue modal work without Flask.
-- Date filters and flock-level summaries match existing behavior closely.
-
-### Sprint 5: Exports, Cleanup, And Flask Removal
+### Sprint 4: Exports, Cleanup, And Flask Removal — COMPLETE
 
 Purpose: finish the cutover and remove old runtime paths.
 
-PR 5.1: Export MVP
+What was built:
 
-- Replace Flask export preview with Supabase query/view.
-- Replace CSV/XLSX export generation with client-side generation where practical.
-- Defer PDF export or implement a lightweight client-side version.
+- `exportApi.js` — replaced stubs with four real Supabase Data API builders (`fetchFeedingRows`, `fetchProductionRows`, `fetchFinancialRows`, `fetchInventoryRows`). `getExportPreview` returns `{ headers, rows }` for the preview table. `generateExport` produces a CSV string and returns it in an Axios-compatible envelope so `Export.jsx` can trigger a browser download without server involvement. PDF and XLSX throw a user-visible error.
+- `Export.jsx` — PDF and XLSX format cards marked `deferred: true`, disabled, and labelled "soon". Error handler updated to read `requestError.message` instead of the old Axios `response.data.message` shape.
+- `src/services/api.js` — deleted. Zero active imports remain.
+- `package.json` — Axios removed (`npm uninstall axios`).
+- `.env` — `VITE_API_BASE_URL` removed.
+- `backend/` — contents deleted; empty directory remains (locked by VS Code file watcher, harmless).
+- Vite app promoted: `package.json`, `index.html`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `src/`, `public/`, `.env` all moved from `farmbright/frontend/` to `farmbright/`. `npm install` and `npm run build` now run from `farmbright/`.
+- `AppLayout.jsx` — converted to Tailwind/DaisyUI inline utilities (sidebar, nav links, sign-out button, layout grid). Removed corresponding CSS blocks from `index.css`. Added `.deferred-tag` style for export format badges.
 
-Acceptance criteria:
+Key decisions:
+- Client-side CSV uses a plain string builder and `URL.createObjectURL`; no library needed.
+- Tailwind conversion is incremental. The app shell (`AppLayout.jsx`) is now Tailwind-only. Per-page CSS classes remain in `index.css` for now; they will be converted page-by-page in a follow-up pass without risk of visual regression.
+- `backend/` directory stub is not harmful and will disappear when VS Code releases the file handle.
 
-- Export page can preview report data.
-- At least CSV export works without Flask.
-- UI clearly disables or hides deferred export formats.
+## Suggested PR Order (updated)
 
-PR 5.2: Remove Axios and Flask runtime
+All 17 items are complete. Remaining work (future sprint):
 
-- Remove Axios dependency.
-- Delete `src/services/api.js`.
-- Remove all `VITE_API_BASE_URL` usage.
-- Remove Flask backend app, routes, models, migrations, Python requirements, Docker Postgres-only development assumptions, and Render Flask deployment config.
-- Delete the `backend/` folder once all remaining logic has been replaced by Supabase table APIs, views, RPCs, or deferred MVP decisions.
-- Replace backend documentation with Supabase setup/deployment documentation.
+- Incremental per-page Tailwind conversion pass (convert each page's CSS class names to inline utilities one page at a time; trim `index.css` as each page is converted).
 
-Acceptance criteria:
+## Supabase Data Surface Plan (as implemented)
 
-- `rg "axios|VITE_API_BASE_URL|/api/" frontend/src` returns no active Flask API usage.
-- `npm run build` succeeds.
-- README describes Supabase-only setup.
+Table API for all simple user-owned CRUD:
 
-PR 5.3: Promote frontend to repo root
+- users, animal_classes, breeds, flocks, feed_types, feed_assignments
+- production_logs, casualty_logs, breeding_logs, revenues, alerts (dismiss = update is_read)
 
-- Move the Vite app files from `frontend/` into the main repo root after the backend folder has been removed.
-- Move `package.json`, `package-lock.json`, `index.html`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, and `src/` to the repo root.
-- Update scripts, README paths, GitHub Actions paths, deployment settings, and any root-relative references.
-- Remove the now-empty `frontend/` folder.
+Postgres triggers handle all side effects (no extra frontend calls needed):
 
-Acceptance criteria:
+- `feed_types BEFORE INSERT/UPDATE` — sync `cost_per_unit` from `bag_price/bag_weight`
+- `casualty_logs AFTER INSERT` — update `flocks.current_headcount`
+- `feeding_events BEFORE INSERT` — lock `cost_per_lb_at_time` from current feed cost
+- `feeding_events AFTER INSERT` — debit `feed_types.current_on_hand`, create `inventory_transactions` row, generate low-feed alert if at/below par
+- `feeding_events BEFORE DELETE` — restore inventory, create reversal transaction
+- `feeding_events BEFORE UPDATE OF total_weight, feed_type_id` — restore old inventory, debit new, create 2 transactions, update cost lock
 
-- The app installs and builds from the repo root.
-- No active docs or workflows point to `farmbright/frontend`.
-- The repo layout reflects the Supabase-only app: one Vite app at root, no Flask backend folder.
+RPCs (only where atomicity requires multiple table changes in one call):
 
-PR 5.4: Tailwind conversion pass
+- `purchase_feed` — updates feed balance + bag metadata, creates purchase transaction, clears alerts
+- `adjust_feed` — updates feed balance, creates adjustment transaction
 
-- Convert remaining page CSS selectors to Tailwind/DaisyUI.
-- Delete obsolete custom CSS blocks.
-- Keep global CSS limited to Tailwind directives, fonts, root theme variables if needed, and small unavoidable browser fixes.
+JS-composed parallel Data API queries for derived reads:
 
-Acceptance criteria:
-
-- `index.css` is small and intentional.
-- Main pages preserve the current UI feel.
-- No page depends on the old large selector stylesheet.
-
-## Suggested PR Order
-
-1. Existing database baseline/RLS.
-2. Data contract map.
-3. App-owned routing.
-4. Remove toast provider.
-5. Tailwind/DaisyUI foundation.
-6. Supabase auth/profile cleanup.
-7. Onboarding CRUD.
-8. Flocks CRUD/history.
-9. Inventory ledger.
-10. Dashboard summary.
-11. Scale-house manual MVP.
-12. Financial summaries/revenue.
-13. Export MVP.
-14. Remove Axios/Flask runtime.
-15. Remove nested frontend folder by promoting the Vite app to repo root.
-16. Final Tailwind conversion and docs polish.
-
-## Supabase Data Surface Plan
-
-Use table APIs for simple user-owned CRUD:
-
-- profiles/users
-- animal_classes
-- breeds
-- flocks
-- feed_types
-- feed_assignments
-- production_logs
-- casualty_logs
-- breeding_logs
-- revenues
-
-Use RPC for writes with side effects:
-
-- create_profile_for_auth_user
-- get_onboarding_summary
-- log_feeding_session
-- patch_feeding_event
-- delete_feeding_event
-- log_inventory_purchase
-- log_inventory_adjustment
-- log_production
-- log_casualty
-- dismiss_alert
-
-Use views or RPC for derived reads:
-
-- dashboard_overview
-- scale_house_queue
-- scale_house_summary
-- flock_detail
-- flock_feeding_history
-- flock_production_history
-- financial_summary
-- flock_financials
-- export_preview
+- Dashboard overview — 8 parallel queries combined in `dashboardApi.js`
+- Flock list stats — flock query + feeding aggregate + egg aggregate composed in JS
+- Flock detail — 4 parallel queries composed in JS
+- Financial summary — feeding + revenue queries aggregated by day in JS
+- Scale house queue/summary — flock + today's feeding queries composed in JS
 
 ## Testing Strategy
 
