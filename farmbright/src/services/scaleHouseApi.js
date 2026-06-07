@@ -21,7 +21,7 @@ export async function getQueue() {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount,
-         breeds ( name, animal_classes ( name, class_type ) ),
+         breeds ( name, animal_classes ( name, class_type, species, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal ) ),
          feed_assignments (
            feed_types ( id, name, unit, cost_per_unit, current_on_hand, par_level, bag_weight, bag_price )
          )`
@@ -49,6 +49,12 @@ export async function getQueue() {
     breed_name: flock.breeds?.name || "",
     animal_class_name: flock.breeds?.animal_classes?.name || "",
     class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
+    emoji: flock.breeds?.animal_classes?.emoji || '',
+    produces_eggs: flock.breeds?.animal_classes?.produces_eggs ?? false,
+    produces_milk: flock.breeds?.animal_classes?.produces_milk ?? false,
+    produces_meat: flock.breeds?.animal_classes?.produces_meat ?? true,
+    produces_young: flock.breeds?.animal_classes?.produces_young ?? true,
+    working_animal: flock.breeds?.animal_classes?.working_animal ?? false,
     designation: flock.designation,
     pen_name: flock.pen_name,
     current_headcount: flock.current_headcount,

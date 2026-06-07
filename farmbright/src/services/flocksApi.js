@@ -17,7 +17,7 @@ export async function getFlocks() {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount, created_at,
-         breeds ( name, animal_classes ( name, class_type ) ),
+         breeds ( name, animal_classes ( name, class_type, species, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal ) ),
          feed_assignments (
            id, feed_type_id,
            feed_types ( name, unit, cost_per_unit, current_on_hand, par_level, bag_weight, bag_price )
@@ -80,6 +80,12 @@ export async function getFlocks() {
       breed_name: flock.breeds?.name || "",
       animal_class_name: flock.breeds?.animal_classes?.name || "",
       class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
+      emoji: flock.breeds?.animal_classes?.emoji || '',
+      produces_eggs: flock.breeds?.animal_classes?.produces_eggs ?? false,
+      produces_milk: flock.breeds?.animal_classes?.produces_milk ?? false,
+      produces_meat: flock.breeds?.animal_classes?.produces_meat ?? true,
+      produces_young: flock.breeds?.animal_classes?.produces_young ?? true,
+      working_animal: flock.breeds?.animal_classes?.working_animal ?? false,
       assigned_feeds: (flock.feed_assignments || []).map((a) => ({
         feed_type_id: a.feed_type_id,
         name: a.feed_types?.name || "",
@@ -108,7 +114,7 @@ export async function getFlockDetail(flockId) {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount, created_at,
-         breeds ( name, animal_classes ( name, class_type ) ),
+         breeds ( name, animal_classes ( name, class_type, species, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal ) ),
          feed_assignments (
            id, feed_type_id,
            feed_types ( id, name, unit, cost_per_unit, current_on_hand, par_level )
@@ -184,6 +190,12 @@ export async function getFlockDetail(flockId) {
       breed_name: flock.breeds?.name || "",
       animal_class_name: flock.breeds?.animal_classes?.name || "",
       class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
+      emoji: flock.breeds?.animal_classes?.emoji || '',
+      produces_eggs: flock.breeds?.animal_classes?.produces_eggs ?? false,
+      produces_milk: flock.breeds?.animal_classes?.produces_milk ?? false,
+      produces_meat: flock.breeds?.animal_classes?.produces_meat ?? true,
+      produces_young: flock.breeds?.animal_classes?.produces_young ?? true,
+      working_animal: flock.breeds?.animal_classes?.working_animal ?? false,
       created_at: flock.created_at,
     },
     assigned_feeds: (flock.feed_assignments || []).map((a) => ({

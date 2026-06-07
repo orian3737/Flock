@@ -1,17 +1,13 @@
 import { useMemo } from 'react';
-import { getFlockConfig, getFlockClassType, getAnimalEmoji } from '../utils/animalClass';
+import { getFlockConfig, getFlockClassType, getAnimalEmoji, getProductionFlags } from '../utils/animalClass';
 
-// Pass a flock object (with breeds.animal_classes.class_type or flat class_type).
-// Returns all config values plus computed helpers.
 export function useAnimalClass(flock) {
   return useMemo(() => {
     const classType = getFlockClassType(flock);
     const config    = getFlockConfig(flock);
-    const breedName = flock?.breeds?.name || flock?.breed_name || '';
-    return {
-      ...config,
-      classType,
-      emoji: getAnimalEmoji(classType, breedName),
-    };
+    // Reads production flags from DB (flock.breeds.animal_classes) with
+    // CLASS_CONFIG fallback for flat flock objects that lack the nested structure.
+    const flags     = getProductionFlags(flock?.breeds?.animal_classes ?? flock);
+    return { ...config, ...flags, classType, emoji: getAnimalEmoji(flock) };
   }, [flock]);
 }

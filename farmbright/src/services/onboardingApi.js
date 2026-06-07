@@ -24,8 +24,28 @@ async function remove(table, id, fallback) {
 
 // ── Animal Classes ──────────────────────────────────────────
 
-export function createAnimalClass({ user_id, name, class_type = 'poultry' }) {
-  return insert("animal_classes", { user_id, name: name.trim(), class_type }, "Could not create animal class.");
+export async function createAnimalClass({
+  user_id,
+  name,
+  class_type     = 'other',
+  species        = null,
+  emoji          = '🐾',
+  produces_eggs  = false,
+  produces_milk  = false,
+  produces_meat  = true,
+  produces_young = true,
+  working_animal = false,
+}) {
+  const { data, error } = await supabase.from('animal_classes')
+    .insert({
+      user_id, name: name.trim(), class_type, species, emoji,
+      produces_eggs, produces_milk, produces_meat, produces_young,
+      working_animal, produces_fiber: false, produces_honey: false,
+    })
+    .select()
+    .single();
+  if (error) throw fmt(error, 'Could not create animal class.');
+  return data;
 }
 
 export function updateAnimalClass(id, { name, class_type }) {
@@ -36,6 +56,44 @@ export function updateAnimalClass(id, { name, class_type }) {
 
 export function deleteAnimalClass(id) {
   return remove("animal_classes", id, "Could not delete animal class.");
+}
+
+// Convenience wrapper for custom (user-created) species — accepts the
+// buildCustomSpeciesPayload shape directly.
+export async function createCustomAnimalClass(userId, payload) {
+  const { data, error } = await supabase.from('animal_classes')
+    .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw fmt(error, 'Could not create custom animal class.');
+  return data;
+}
+
+// Patch only the production flag columns on an existing animal class.
+export async function updateAnimalClassFlags(animalClassId, {
+  produces_eggs,
+  produces_milk,
+  produces_meat,
+  produces_young,
+  working_animal,
+  produces_fiber,
+  produces_honey,
+}) {
+  const patch = {};
+  if (produces_eggs   != null) patch.produces_eggs   = produces_eggs;
+  if (produces_milk   != null) patch.produces_milk   = produces_milk;
+  if (produces_meat   != null) patch.produces_meat   = produces_meat;
+  if (produces_young  != null) patch.produces_young  = produces_young;
+  if (working_animal  != null) patch.working_animal  = working_animal;
+  if (produces_fiber  != null) patch.produces_fiber  = produces_fiber;
+  if (produces_honey  != null) patch.produces_honey  = produces_honey;
+  const { data, error } = await supabase.from('animal_classes')
+    .update(patch)
+    .eq('id', animalClassId)
+    .select()
+    .single();
+  if (error) throw fmt(error, 'Could not update animal class flags.');
+  return data;
 }
 
 // ── Breeds ──────────────────────────────────────────────────
@@ -193,7 +251,10 @@ export async function getOnboardingSummary(userId) {
 
   const [animalClasses, feedTypes] = await Promise.all([
     selectOrThrow(
-      supabase.from("animal_classes").select("id,user_id,name,class_type").eq("user_id", userId).order("name"),
+      supabase.from("animal_classes")
+        .select("id,user_id,name,class_type,species,emoji,produces_eggs,produces_milk,produces_meat,produces_young,working_animal,produces_fiber,produces_honey")
+        .eq("user_id", userId)
+        .order("name"),
       "Could not load animal classes."
     ),
     selectOrThrow(
@@ -265,7 +326,16 @@ export async function getOnboardingSummary(userId) {
       id: ac.id,
       user_id: ac.user_id,
       name: ac.name,
-      class_type: ac.class_type || 'poultry',
+      class_type: ac.class_type || 'other',
+      species: ac.species || null,
+      emoji: ac.emoji || '🐾',
+      produces_eggs: ac.produces_eggs ?? false,
+      produces_milk: ac.produces_milk ?? false,
+      produces_meat: ac.produces_meat ?? true,
+      produces_young: ac.produces_young ?? true,
+      working_animal: ac.working_animal ?? false,
+      produces_fiber: ac.produces_fiber ?? false,
+      produces_honey: ac.produces_honey ?? false,
       breeds: (breedsByClassId.get(ac.id) || []).sort((a, z) => a.name.localeCompare(z.name)),
     })),
     feed_types: feedTypes.map(feedTypeJson),
