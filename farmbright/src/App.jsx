@@ -7,6 +7,7 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { FarmProvider } from "./context/FarmContext.jsx";
 import Login from "./pages/auth/Login.jsx";
+import ResetPassword from "./pages/auth/ResetPassword.jsx";
 import Dashboard from "./pages/dashboard/Dashboard.jsx";
 import Financials from "./pages/finances/Financials.jsx";
 import FlockDetail from "./pages/flocks/FlockDetail.jsx";
@@ -27,6 +28,7 @@ export function App() {
           <BrowserRouter basename={import.meta.env.BASE_URL}>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/onboarding" element={<OnboardingWizard />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>

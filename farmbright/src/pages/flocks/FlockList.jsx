@@ -28,7 +28,7 @@ function FlockList() {
     if (!userId) return false;
     setLoading(true);
     try {
-      const [flockRows, setupRows] = await Promise.all([getFlocks(userId), getOnboardingSummary(userId)]);
+      const [flockRows, setupRows] = await Promise.all([getFlocks(), getOnboardingSummary(userId)]);
       setFlocks(flockRows);
       setSetup(setupRows);
       return true;

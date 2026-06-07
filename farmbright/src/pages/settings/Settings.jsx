@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Bell, CreditCard, Settings as SettingsIcon, User } from "lucide-react";
+import { Bell, CheckCircle, CreditCard, Settings as SettingsIcon, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import InlineFeedback from "../../components/InlineFeedback";
@@ -22,66 +22,153 @@ const defaultPreferences = {
 
 function Settings() {
   const navigate = useNavigate();
-  const { profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { setFarmName } = useFarm();
   const [activeTab, setActiveTab] = useState("account");
   const [feedback, setFeedback] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Section A — Display Name
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
-  const [farmNameDraft, setFarmNameDraft] = useState("");
-  const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York");
-  const [preferences, setPreferences] = useState(defaultPreferences);
+
+  // Section B — Email
+  const [emailStage, setEmailStage] = useState("view");
+  const [emailVerifyPassword, setEmailVerifyPassword] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [emailError, setEmailError] = useState(null);
+
+  // Section C — Password
+  const [passwordStage, setPasswordStage] = useState("form");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState(null);
+
+  // Farm tab
+  const [farmNameDraft, setFarmNameDraft] = useState("");
+  const [timeZone, setTimeZone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"
+  );
+
+  // Notifications tab
+  const [preferences, setPreferences] = useState(defaultPreferences);
 
   useEffect(() => {
     setDisplayName(profile?.display_name || "");
-    setEmail(profile?.email || "");
     setFarmNameDraft(profile?.farm_name || "");
     setPreferences({ ...defaultPreferences, ...(profile?.preferences || {}) });
-    setTimeZone(profile?.preferences?.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York");
+    setTimeZone(
+      profile?.preferences?.time_zone ||
+        Intl.DateTimeFormat().resolvedOptions().timeZone ||
+        "America/New_York"
+    );
   }, [profile]);
 
-  const emailAddress = useMemo(() => profile?.email || email || "your account email", [profile?.email, email]);
+  const emailAddress = useMemo(
+    () => profile?.email || user?.email || "your account email",
+    [profile?.email, user?.email]
+  );
 
-  async function saveAccount() {
+  // Section A
+  async function saveName() {
     if (!profile?.id) return;
     setSaving(true);
     setFeedback(null);
     try {
-      await updateUser(profile.id, { display_name: displayName, farm_name: farmNameDraft || profile.farm_name });
+      await updateUser(profile.id, { display_name: displayName });
       await refreshProfile();
-      setFeedback({ type: "success", message: "Account updated" });
-    } catch (error) {
-      setFeedback({ type: "error", message: formatError(error) });
+      setFeedback({ type: "success", message: "Name updated" });
+    } catch (err) {
+      setFeedback({ type: "error", message: err?.message || "Something went wrong." });
     } finally {
       setSaving(false);
     }
   }
 
-  async function updatePassword() {
-    if (!newPassword || newPassword !== confirmPassword) {
-      setFeedback({ type: "error", message: "New passwords must match." });
+  // Section B
+  async function verifyEmailPassword() {
+    setEmailError(null);
+    setEmailStage("verifying");
+    const { error } = await supabase.auth.signInWithPassword({
+      email: user?.email,
+      password: emailVerifyPassword,
+    });
+    if (error) {
+      setEmailError("Incorrect password");
+      setEmailStage("verify");
       return;
     }
-    setSaving(true);
-    setFeedback(null);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setFeedback({ type: "success", message: "Password updated" });
-    } catch (error) {
-      setFeedback({ type: "error", message: error.message || "Password could not be updated." });
-    } finally {
-      setSaving(false);
+    setEmailStage("change");
+  }
+
+  async function sendEmailChange() {
+    setEmailError(null);
+    const { error } = await supabase.auth.updateUser({ email: newEmail });
+    if (error) {
+      setEmailError(error.message);
+      return;
+    }
+    setEmailStage("sent");
+  }
+
+  function cancelEmailChange() {
+    setEmailStage("view");
+    setEmailVerifyPassword("");
+    setNewEmail("");
+    setEmailError(null);
+  }
+
+  // Section C
+  async function handlePasswordChange() {
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      return;
+    }
+    setPasswordError(null);
+    setPasswordStage("verifying");
+
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user?.email,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      setPasswordError("Current password is incorrect");
+      setPasswordStage("form");
+      return;
+    }
+
+    setPasswordStage("changing");
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) {
+      setPasswordError(updateError.message);
+      setPasswordStage("form");
+      return;
+    }
+
+    setPasswordStage("success");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError(null);
+    setTimeout(() => setPasswordStage("form"), 3000);
+  }
+
+  async function sendPasswordReset() {
+    const { error } = await supabase.auth.resetPasswordForEmail(user?.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      setFeedback({ type: "error", message: error.message });
+    } else {
+      setFeedback({ type: "info", message: `Reset link sent to ${user?.email}. Check your inbox.` });
     }
   }
 
+  // Farm tab
   async function saveFarm() {
     if (!profile?.id) return;
     setSaving(true);
@@ -92,13 +179,14 @@ function Settings() {
       await refreshProfile();
       setFarmName(updated.farm_name);
       setFeedback({ type: "success", message: "Farm settings updated" });
-    } catch (error) {
-      setFeedback({ type: "error", message: formatError(error) });
+    } catch (err) {
+      setFeedback({ type: "error", message: err?.message || "Something went wrong." });
     } finally {
       setSaving(false);
     }
   }
 
+  // Notifications tab
   async function saveNotifications() {
     if (!profile?.id) return;
     setSaving(true);
@@ -107,8 +195,8 @@ function Settings() {
       await updateUserPreferences(profile.id, preferences);
       await refreshProfile();
       setFeedback({ type: "success", message: "Notification preferences saved" });
-    } catch (error) {
-      setFeedback({ type: "error", message: formatError(error) });
+    } catch (err) {
+      setFeedback({ type: "error", message: err?.message || "Something went wrong." });
     } finally {
       setSaving(false);
     }
@@ -117,6 +205,8 @@ function Settings() {
   function updatePreference(key, value) {
     setPreferences((current) => ({ ...current, [key]: value }));
   }
+
+  const isPasswordBusy = passwordStage === "verifying" || passwordStage === "changing";
 
   return (
     <section className="settings-page">
@@ -148,42 +238,195 @@ function Settings() {
       </div>
 
       {activeTab === "account" ? (
-        <section className="panel-card grid gap-4">
-          <h2 className="display-font">Account Settings</h2>
-          <div className="settings-form-grid">
+        <div className="grid gap-5">
+
+          {/* Section A — Display Name */}
+          <section className="panel-card grid gap-4">
+            <h2 className="display-font">Display Name</h2>
             <label className="field">
               <span>Display name</span>
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </label>
-            <label className="field">
-              <span>Email</span>
-              <input value={email} onChange={(event) => setEmail(event.target.value)} />
-            </label>
-          </div>
-          <button className="secondary-button" type="button" disabled={saving} onClick={saveAccount}>
-            Save Changes
-          </button>
+            <button className="secondary-button" type="button" disabled={saving} onClick={saveName}>
+              Save Name
+            </button>
+          </section>
 
-          <div className="settings-divider" />
-          <h3 className="display-font">Change Password</h3>
-          <div className="settings-form-grid three">
-            <label className="field">
-              <span>Current password</span>
-              <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>New password</span>
-              <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Confirm new password</span>
-              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
-            </label>
-          </div>
-          <button className="primary-button" type="button" disabled={saving} onClick={updatePassword}>
-            Update Password
-          </button>
-        </section>
+          {/* Section B — Email */}
+          <section className="panel-card grid gap-4">
+            <h2 className="display-font">Email Address</h2>
+
+            {emailStage === "view" && (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <span className="font-mono text-sm text-[var(--text-primary)]">
+                  {profile?.email || user?.email}
+                </span>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setEmailStage("verify")}
+                >
+                  Change email
+                </button>
+              </div>
+            )}
+
+            {(emailStage === "verify" || emailStage === "verifying") && (
+              <>
+                <p className="font-mono text-xs text-[var(--text-secondary)] m-0">
+                  To change your email, first confirm your current password.
+                </p>
+                <label className="field">
+                  <span>Current password</span>
+                  <input
+                    type="password"
+                    value={emailVerifyPassword}
+                    disabled={emailStage === "verifying"}
+                    onChange={(e) => setEmailVerifyPassword(e.target.value)}
+                  />
+                </label>
+                {emailError && (
+                  <p className="font-mono text-xs text-[var(--accent-danger)] m-0">{emailError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    className="primary-button flex-1"
+                    type="button"
+                    disabled={emailStage === "verifying"}
+                    onClick={verifyEmailPassword}
+                  >
+                    {emailStage === "verifying" ? (
+                      <><span className="loading loading-spinner loading-xs" /> Verifying...</>
+                    ) : "Confirm"}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={emailStage === "verifying"}
+                    onClick={cancelEmailChange}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {emailStage === "change" && (
+              <>
+                <label className="field">
+                  <span>New email address</span>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                  />
+                </label>
+                <div className="warn-banner">
+                  A confirmation link will be sent to your new address. Your login email stays the
+                  same until you click it.
+                </div>
+                {emailError && (
+                  <p className="font-mono text-xs text-[var(--accent-danger)] m-0">{emailError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button className="primary-button flex-1" type="button" onClick={sendEmailChange}>
+                    Send Confirmation
+                  </button>
+                  <button className="secondary-button" type="button" onClick={cancelEmailChange}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {emailStage === "sent" && (
+              <div className="grid gap-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={20} className="text-[var(--accent-primary)] flex-none" />
+                  <span className="font-mono text-sm text-[var(--text-primary)]">
+                    Confirmation sent to {newEmail}
+                  </span>
+                </div>
+                <p className="font-mono text-xs text-[var(--text-muted)] m-0">
+                  Check your inbox and click the link to complete the change.
+                </p>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    setEmailStage("view");
+                    setNewEmail("");
+                    setEmailVerifyPassword("");
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </section>
+
+          {/* Section C — Password */}
+          <section className="panel-card grid gap-4">
+            <h2 className="display-font">Change Password</h2>
+
+            {passwordStage === "success" ? (
+              <InlineFeedback message="Password updated successfully" type="success" />
+            ) : (
+              <>
+                <label className="field">
+                  <span>Current password</span>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    disabled={isPasswordBusy}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="font-mono text-xs text-[var(--accent-primary)] hover:underline cursor-pointer text-right bg-transparent border-0 p-0 mt-[-8px]"
+                  onClick={sendPasswordReset}
+                >
+                  Forgot your password?
+                </button>
+                <label className="field">
+                  <span>New password</span>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    disabled={isPasswordBusy}
+                    minLength={8}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  <span>Confirm new password</span>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    disabled={isPasswordBusy}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </label>
+                {passwordError && (
+                  <p className="font-mono text-xs text-[var(--accent-danger)] bg-[var(--bg-elevated)] rounded-lg p-3 m-0">
+                    {passwordError}
+                  </p>
+                )}
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={isPasswordBusy}
+                  onClick={handlePasswordChange}
+                >
+                  {isPasswordBusy ? (
+                    <><span className="loading loading-spinner loading-xs" /> Updating...</>
+                  ) : "Update Password"}
+                </button>
+              </>
+            )}
+          </section>
+        </div>
       ) : null}
 
       {activeTab === "farm" ? (
@@ -192,11 +435,11 @@ function Settings() {
           <div className="settings-form-grid">
             <label className="field">
               <span>Farm name</span>
-              <input value={farmNameDraft} onChange={(event) => setFarmNameDraft(event.target.value)} />
+              <input value={farmNameDraft} onChange={(e) => setFarmNameDraft(e.target.value)} />
             </label>
             <label className="field">
               <span>Time zone</span>
-              <select value={timeZone} onChange={(event) => setTimeZone(event.target.value)}>
+              <select value={timeZone} onChange={(e) => setTimeZone(e.target.value)}>
                 <option value="America/New_York">America/New_York</option>
                 <option value="America/Chicago">America/Chicago</option>
                 <option value="America/Denver">America/Denver</option>
@@ -269,13 +512,9 @@ function ToggleRow({ checked, description, label, onChange }) {
         <strong>{label}</strong>
         <small>{description}</small>
       </span>
-      <input type="checkbox" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} />
+      <input type="checkbox" checked={Boolean(checked)} onChange={(e) => onChange(e.target.checked)} />
     </label>
   );
-}
-
-function formatError(error) {
-  return error?.response?.data?.message || error?.response?.data?.error || error?.message || "Something went wrong.";
 }
 
 export default Settings;

@@ -1,16 +1,11 @@
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-.env
-
-# Flask
-instance/
-
 # Node
 node_modules/
 dist/
 .vite/
+
+# Legacy directories (pending manual deletion)
+frontend/
+backend/
 
 # OS and editor
 .DS_Store

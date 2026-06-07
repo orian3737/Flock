@@ -375,8 +375,6 @@ function formatNumber(value = 0, digits = 0) {
   }).format(Number(value) || 0);
 }
 
-function formatError(error) {
-  return error?.response?.data?.message || error?.response?.data?.error || error?.message || "Something went wrong.";
-}
+const formatError = (error) => error?.message || 'An unexpected error occurred';
 
 export default FlockDetail;
