@@ -362,14 +362,14 @@ function EditableBagStat({ editing, editValue, feed, onBeginEdit, onSave, setEdi
 
 function TransactionHistory({ rows, unit }) {
   return (
-    <div className="border border-[rgba(46,125,50,0.65)] rounded-lg overflow-x-auto">
+    <div className="border border-[rgba(46,125,50,0.65)] rounded-lg overflow-auto max-h-[320px]">
       <table className="border-collapse w-full" style={{ minWidth: "620px" }}>
         <thead>
           <tr>
             {["Date", "Type", "Qty Change", "Running Balance", "Notes"].map((h) => (
               <th
                 key={h}
-                className="border-b border-[rgba(46,125,50,0.55)] bg-[var(--bg-elevated)] text-[var(--text-primary)] text-xs p-2.5 text-left"
+                className="sticky top-0 z-10 border-b border-[rgba(46,125,50,0.55)] bg-[var(--bg-elevated)] text-[var(--text-primary)] text-xs p-2.5 text-left"
               >
                 {h}
               </th>
