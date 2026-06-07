@@ -169,10 +169,7 @@ function OnboardingWizard() {
       if (item.id) {
         next.push(item);
       } else {
-        const saved = await createBreed({
-          animal_class_id: item.animal_class_id,
-          name: item.name.trim(),
-        });
+        const saved = await createBreed(item.animal_class_id, item.name.trim());
         next.push({ ...item, ...saved });
       }
     }

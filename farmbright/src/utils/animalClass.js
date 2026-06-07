@@ -106,9 +106,19 @@ export function getAnimalEmoji(classType, name = '') {
   if (classType && CLASS_CONFIG[classType]) {
     const lower = name.toLowerCase();
     if (classType === 'poultry') {
-      if (lower.includes('duck'))   return '🦆';
-      if (lower.includes('turkey')) return '🦃';
-      if (lower.includes('quail'))  return '🐦';
+      if (lower.includes('duck'))        return '🦆';
+      if (lower.includes('muscovy'))     return '🦆';
+      if (lower.includes('appleyard'))   return '🦆';
+      if (lower.includes('saxony'))      return '🦆';
+      if (lower.includes('silver'))      return '🦆';
+      if (lower.includes('turkey'))      return '🦃';
+      if (lower.includes('bourbon'))     return '🦃';
+      if (lower.includes('chocolate'))   return '🦃';
+      if (lower.includes('quail'))       return '🐦';
+      if (lower.includes('bobwhite'))    return '🐦';
+      if (lower.includes('egyptian'))    return '🐦';
+      if (lower.includes('jumbo'))       return '🐦';
+      if (lower.includes('chicken'))     return '🐓';
       return '🐓';
     }
     return CLASS_CONFIG[classType].emoji;

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 import { CLASS_CONFIG } from "../../utils/animalClass";
 import { useAuth } from "../../context/AuthContext";
 import InlineFeedback from "../../components/InlineFeedback";
 import {
+  createBreed,
   deleteAnimalClass,
   deleteBreed,
   deleteFeedType,
@@ -26,6 +27,9 @@ function FarmSetup() {
   const [draft, setDraft] = useState({});
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editingBreedId, setEditingBreedId] = useState(null);
+  const [editingBreedName, setEditingBreedName] = useState("");
+  const [newBreedName, setNewBreedName] = useState({});
 
   async function loadSummary() {
     if (!profile?.id) return;
@@ -88,9 +92,6 @@ function FarmSetup() {
       if (type === "animalClass") {
         await updateAnimalClass(id, { name: draft.name, class_type: draft.class_type });
       }
-      if (type === "breed") {
-        await updateBreed(id, { name: draft.name });
-      }
       if (type === "flock") {
         await updateFlock(id, {
           name: draft.name,
@@ -132,6 +133,43 @@ function FarmSetup() {
     } catch (err) {
       const message = formatError(err);
       setFeedback({ type: "error", message });
+    }
+  }
+
+  async function handleAddBreed(animalClassId) {
+    const name = newBreedName[animalClassId]?.trim();
+    if (!name) return;
+    setFeedback(null);
+    try {
+      await createBreed(animalClassId, name);
+      setNewBreedName((prev) => ({ ...prev, [animalClassId]: "" }));
+      if (await loadSummary()) setFeedback({ type: "success", message: "Breed added." });
+    } catch (err) {
+      setFeedback({ type: "error", message: formatError(err) });
+    }
+  }
+
+  async function saveBreedEdit(breedId) {
+    const name = editingBreedName.trim();
+    if (!name) return;
+    setFeedback(null);
+    try {
+      await updateBreed(breedId, name);
+      setEditingBreedId(null);
+      if (await loadSummary()) setFeedback({ type: "success", message: "Breed updated." });
+    } catch (err) {
+      setFeedback({ type: "error", message: formatError(err) });
+    }
+  }
+
+  async function handleDeleteBreed(breedId, breedName) {
+    if (!window.confirm(`Delete breed "${breedName}"? This cannot be undone.`)) return;
+    setFeedback(null);
+    try {
+      await deleteBreed(breedId);
+      if (await loadSummary()) setFeedback({ type: "success", message: "Breed deleted." });
+    } catch (err) {
+      setFeedback({ type: "error", message: formatError(err) });
     }
   }
 
@@ -200,20 +238,49 @@ function FarmSetup() {
                 <div className="settings-panel-body">
                   {animalClass.breeds.map((breed) => (
                     <section className="breed-editor" key={breed.id}>
-                      <div className="settings-row">
-                        <InlineNameEditor
-                          className="display-font text-[20px] leading-none text-[#e8f5e9]"
-                          editing={isEditing("breed", breed.id)}
-                          value={isEditing("breed", breed.id) ? draft.name : breed.name}
-                          onChange={(value) => updateDraft("name", value)}
-                        />
-                        <RowActions
-                          editing={isEditing("breed", breed.id)}
-                          onCancel={cancelEdit}
-                          onDelete={() => deleteItem("breed", breed.id)}
-                          onEdit={() => beginEdit("breed", breed)}
-                          onSave={() => saveEdit("breed", breed.id)}
-                        />
+                      <div className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
+                        {editingBreedId === breed.id ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              autoFocus
+                              className="settings-inline-input flex-1"
+                              value={editingBreedName}
+                              onChange={(e) => setEditingBreedName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveBreedEdit(breed.id);
+                                if (e.key === "Escape") setEditingBreedId(null);
+                              }}
+                            />
+                            <button className="icon-button" type="button" onClick={() => saveBreedEdit(breed.id)} aria-label="Save">
+                              <Save size={16} />
+                            </button>
+                            <button className="icon-button" type="button" onClick={() => setEditingBreedId(null)} aria-label="Cancel">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-mono text-sm text-[var(--text-primary)]">{breed.name}</span>
+                            <div className="settings-actions">
+                              <button
+                                className="icon-button"
+                                type="button"
+                                aria-label="Edit"
+                                onClick={() => { setEditingBreedId(breed.id); setEditingBreedName(breed.name); }}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                className="icon-button danger"
+                                type="button"
+                                aria-label="Delete"
+                                onClick={() => handleDeleteBreed(breed.id, breed.name)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       <div className="flock-editor-list">
@@ -233,6 +300,24 @@ function FarmSetup() {
                       </div>
                     </section>
                   ))}
+
+                  <div className="flex items-center gap-2 mt-3 px-1">
+                    <input
+                      className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[36px] py-2 px-[10px] flex-1 font-mono text-sm"
+                      placeholder="Add breed..."
+                      value={newBreedName[animalClass.id] || ""}
+                      onChange={(e) => setNewBreedName((prev) => ({ ...prev, [animalClass.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAddBreed(animalClass.id); }}
+                    />
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={!newBreedName[animalClass.id]?.trim()}
+                      onClick={() => handleAddBreed(animalClass.id)}
+                    >
+                      <Plus size={14} /> Add
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </section>

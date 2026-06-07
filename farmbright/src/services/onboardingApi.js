@@ -40,16 +40,38 @@ export function deleteAnimalClass(id) {
 
 // ── Breeds ──────────────────────────────────────────────────
 
-export function createBreed({ animal_class_id, name }) {
-  return insert("breeds", { animal_class_id, name: name.trim() }, "Could not create breed.");
+export function createBreed(animalClassId, name) {
+  return insert("breeds", { animal_class_id: animalClassId, name: name.trim() }, "Could not create breed.");
 }
 
-export function updateBreed(id, { name }) {
-  return update("breeds", id, { name: name.trim() }, "Could not update breed.");
+export function updateBreed(breedId, name) {
+  return update("breeds", breedId, { name: name.trim() }, "Could not update breed.");
 }
 
-export function deleteBreed(id) {
-  return remove("breeds", id, "Could not delete breed.");
+export async function deleteBreed(breedId) {
+  const { count } = await supabase
+    .from("flocks")
+    .select("id", { count: "exact", head: true })
+    .eq("breed_id", breedId);
+  if (count > 0) {
+    throw new Error(
+      `This breed has ${count} flock${count > 1 ? "s" : ""} assigned. ` +
+      `Remove or reassign those flocks before deleting this breed.`
+    );
+  }
+  const { error } = await supabase.from("breeds").delete().eq("id", breedId);
+  if (error) throw fmt(error, "Could not delete breed.");
+  return true;
+}
+
+export async function getAllBreedsGrouped(userId) {
+  const { data, error } = await supabase
+    .from("animal_classes")
+    .select("id, name, class_type, species, emoji, breeds ( id, name )")
+    .eq("user_id", userId)
+    .order("name");
+  if (error) throw fmt(error, "Could not load breeds.");
+  return data || [];
 }
 
 // ── Flocks ──────────────────────────────────────────────────

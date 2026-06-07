@@ -1,7 +1,8 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import BreedSelector from "../../components/BreedSelector";
 import InlineFeedback from "../../components/InlineFeedback";
 import { FarmContext } from "../../context/FarmContext";
 import { getFlocks } from "../../services/flocksApi";
@@ -18,12 +19,6 @@ function FlockList() {
   const [setup, setSetup] = useState({ animal_classes: [], feed_types: [] });
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const breedOptions = useMemo(() => {
-    return setup.animal_classes.flatMap((ac) =>
-      ac.breeds.map((b) => ({ id: b.id, label: `${b.name} (${ac.name})` }))
-    );
-  }, [setup.animal_classes]);
 
   async function refresh() {
     if (!userId) return false;
@@ -168,8 +163,8 @@ function FlockList() {
 
       {modalOpen ? (
         <AddFlockModal
-          breedOptions={breedOptions}
           feedTypes={setup.feed_types}
+          userId={userId}
           onClose={() => setModalOpen(false)}
           onSubmit={submitFlock}
         />
@@ -178,9 +173,9 @@ function FlockList() {
   );
 }
 
-function AddFlockModal({ breedOptions, feedTypes, onClose, onSubmit }) {
+function AddFlockModal({ feedTypes, userId, onClose, onSubmit }) {
   const [name, setName] = useState("");
-  const [breedId, setBreedId] = useState(breedOptions[0]?.id || "");
+  const [selectedBreedId, setSelectedBreedId] = useState(null);
   const [penName, setPenName] = useState("");
   const [headcount, setHeadcount] = useState("");
   const [designation, setDesignation] = useState("mixed");
@@ -192,9 +187,10 @@ function AddFlockModal({ breedOptions, feedTypes, onClose, onSubmit }) {
 
   function submit(event) {
     event.preventDefault();
+    if (!selectedBreedId) return;
     onSubmit({
       flock: {
-        breed_id: Number(breedId),
+        breed_id: selectedBreedId,
         name,
         designation,
         pen_name: penName,
@@ -218,12 +214,14 @@ function AddFlockModal({ breedOptions, feedTypes, onClose, onSubmit }) {
             <span>Flock name</span>
             <input required value={name} onChange={(e) => setName(e.target.value)} />
           </label>
-          <label className="field">
+          <div className="field">
             <span>Breed</span>
-            <select required value={breedId} onChange={(e) => setBreedId(e.target.value)}>
-              {breedOptions.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-            </select>
-          </label>
+            <BreedSelector
+              value={selectedBreedId}
+              onChange={(breedId) => setSelectedBreedId(breedId)}
+              userId={userId}
+            />
+          </div>
           <label className="field">
             <span>Pen name</span>
             <input value={penName} onChange={(e) => setPenName(e.target.value)} />
@@ -267,7 +265,7 @@ function AddFlockModal({ breedOptions, feedTypes, onClose, onSubmit }) {
 
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" type="submit">Add Flock</button>
+          <button className="primary-button" type="submit" disabled={!selectedBreedId}>Add Flock</button>
         </div>
       </form>
     </div>
