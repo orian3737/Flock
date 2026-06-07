@@ -17,7 +17,7 @@ export async function getFlocks() {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount, created_at,
-         breeds ( name, animal_classes ( name ) ),
+         breeds ( name, animal_classes ( name, class_type ) ),
          feed_assignments (
            id, feed_type_id,
            feed_types ( name, unit, cost_per_unit, current_on_hand, par_level, bag_weight, bag_price )
@@ -79,6 +79,7 @@ export async function getFlocks() {
       created_at: flock.created_at,
       breed_name: flock.breeds?.name || "",
       animal_class_name: flock.breeds?.animal_classes?.name || "",
+      class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
       assigned_feeds: (flock.feed_assignments || []).map((a) => ({
         feed_type_id: a.feed_type_id,
         name: a.feed_types?.name || "",
@@ -107,7 +108,7 @@ export async function getFlockDetail(flockId) {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount, created_at,
-         breeds ( name, animal_classes ( name ) ),
+         breeds ( name, animal_classes ( name, class_type ) ),
          feed_assignments (
            id, feed_type_id,
            feed_types ( id, name, unit, cost_per_unit, current_on_hand, par_level )
@@ -182,6 +183,7 @@ export async function getFlockDetail(flockId) {
       current_headcount: flock.current_headcount,
       breed_name: flock.breeds?.name || "",
       animal_class_name: flock.breeds?.animal_classes?.name || "",
+      class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
       created_at: flock.created_at,
     },
     assigned_feeds: (flock.feed_assignments || []).map((a) => ({

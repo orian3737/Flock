@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Save, Trash2, X } from "lucide-react";
 
+import { CLASS_CONFIG } from "../../utils/animalClass";
 import { useAuth } from "../../context/AuthContext";
 import InlineFeedback from "../../components/InlineFeedback";
 import {
@@ -85,7 +86,7 @@ function FarmSetup() {
     setFeedback(null);
     try {
       if (type === "animalClass") {
-        await updateAnimalClass(id, { name: draft.name });
+        await updateAnimalClass(id, { name: draft.name, class_type: draft.class_type });
       }
       if (type === "breed") {
         await updateBreed(id, { name: draft.name });
@@ -169,6 +170,31 @@ function FarmSetup() {
                   onSave={() => saveEdit("animalClass", animalClass.id)}
                 />
               </div>
+
+              {isEditing("animalClass", animalClass.id) && (
+                <div className="px-4 pb-3 grid gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(CLASS_CONFIG).map(([type, cfg]) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={[
+                          "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[32px] py-[6px] px-3 text-xs capitalize",
+                          (draft.class_type || 'poultry') === type
+                            ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold"
+                            : "",
+                        ].join(" ")}
+                        onClick={() => updateDraft("class_type", type)}
+                      >
+                        {cfg.emoji} {type}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[var(--text-muted)] text-xs m-0">
+                    Animal type controls terminology, production tracking, and designation options.
+                  </p>
+                </div>
+              )}
 
               {open ? (
                 <div className="settings-panel-body">

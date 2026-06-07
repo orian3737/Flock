@@ -6,6 +6,7 @@ import InlineFeedback from "../../components/InlineFeedback";
 import { FarmContext } from "../../context/FarmContext";
 import { getFlocks } from "../../services/flocksApi";
 import { createFeedAssignment, createFlock, getOnboardingSummary } from "../../services/onboardingApi";
+import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
 
 const designations = ["layer", "breeder", "meat", "mixed"];
 
@@ -96,7 +97,9 @@ function FlockList() {
             </div>
 
             <div className="flex items-center gap-2.5">
-              <span className="text-[30px]" aria-hidden="true">{animalEmoji(flock.animal_class_name)}</span>
+              <span className="text-[30px]" aria-hidden="true">
+                {getAnimalEmoji(flock.class_type, flock.breed_name)}
+              </span>
               <h2 className="display-font m-0">{flock.name}</h2>
             </div>
 
@@ -111,7 +114,9 @@ function FlockList() {
               <strong className="text-[var(--text-primary)] number-font text-[32px] leading-none">
                 {flock.current_headcount}
               </strong>
-              <span className="text-[var(--text-muted)] text-xs pb-1">birds</span>
+              <span className="text-[var(--text-muted)] text-xs pb-1">
+                {getClassConfig({ class_type: flock.class_type }).headTerm.toLowerCase()}
+              </span>
               <em
                 className={`inline-flex items-center gap-1.5 text-xs not-italic pb-1 ${
                   flock.today_fed ? "text-[var(--accent-primary)]" : "text-[var(--text-muted)]"
@@ -267,15 +272,6 @@ function AddFlockModal({ breedOptions, feedTypes, onClose, onSubmit }) {
       </form>
     </div>
   );
-}
-
-function animalEmoji(name = "") {
-  const l = name.toLowerCase();
-  if (l.includes("goat"))  return "🐐";
-  if (l.includes("swine") || l.includes("pig")) return "🐖";
-  if (l.includes("cattle") || l.includes("cow")) return "🐄";
-  if (l.includes("rabbit")) return "🐇";
-  return "🐓";
 }
 
 function formatMoney(value = 0) {

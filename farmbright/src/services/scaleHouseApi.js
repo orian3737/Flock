@@ -21,7 +21,7 @@ export async function getQueue() {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount,
-         breeds ( name, animal_classes ( name ) ),
+         breeds ( name, animal_classes ( name, class_type ) ),
          feed_assignments (
            feed_types ( id, name, unit, cost_per_unit, current_on_hand, par_level, bag_weight, bag_price )
          )`
@@ -48,6 +48,7 @@ export async function getQueue() {
     name: flock.name,
     breed_name: flock.breeds?.name || "",
     animal_class_name: flock.breeds?.animal_classes?.name || "",
+    class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
     designation: flock.designation,
     pen_name: flock.pen_name,
     current_headcount: flock.current_headcount,
@@ -167,9 +168,13 @@ export async function logSession({ flock_id, feeding, production, headcount_chan
       .insert({
         flock_id,
         date: targetDate,
-        egg_count: production.egg_count != null ? Number(production.egg_count) : null,
+        egg_count:     production.egg_count     != null ? Number(production.egg_count)     : null,
         water_consumed: production.water_consumed != null ? Number(production.water_consumed) : null,
-        notes: production.notes || null,
+        litter_count:  production.litter_count  != null ? Number(production.litter_count)  : null,
+        litter_size:   production.litter_size   != null ? Number(production.litter_size)   : null,
+        litter_notes:  production.litter_notes  || null,
+        milk_gallons:  production.milk_gallons  != null ? Number(production.milk_gallons)  : null,
+        notes:         production.notes || null,
       })
       .select()
       .single();
@@ -354,7 +359,14 @@ function feedingEventJson(event) {
 }
 
 function hasProductionData(p) {
-  return p && (p.egg_count != null || p.water_consumed != null || p.notes);
+  return p && (
+    p.egg_count     != null ||
+    p.water_consumed != null ||
+    p.litter_count  != null ||
+    p.litter_size   != null ||
+    p.milk_gallons  != null ||
+    p.notes
+  );
 }
 
 // ── Deferred: DYMO HID scale (hardware bridge removed with Flask) ──────────

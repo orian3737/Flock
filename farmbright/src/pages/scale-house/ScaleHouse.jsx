@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
 import {
   deleteAllTodayFeedings,
@@ -100,6 +101,9 @@ function ScaleHouse() {
   const [inputMethod, setInputMethod] = useState("manual");
   const [eggCount, setEggCount] = useState("");
   const [waterConsumed, setWaterConsumed] = useState("");
+  const [litterCount, setLitterCount] = useState("");
+  const [litterSize, setLitterSize] = useState("");
+  const [litterNotes, setLitterNotes] = useState("");
   const [productionSkipped, setProductionSkipped] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
   const [sessionDate, setSessionDate] = useState(todayString());
@@ -139,7 +143,11 @@ function ScaleHouse() {
   const costTotal = currentFeed ? effectiveWeight * (currentFeed.cost_per_lb ?? currentFeed.cost_per_unit ?? 0) : 0;
   const costPerBird = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
   const canLog = currentFlock && currentFeed && effectiveWeight > 0 && (headcountChange >= 0 || casualtyNotes.trim());
-  const showProduction = currentFlock && ["layer", "breeder"].includes(currentFlock.designation) && !productionSkipped;
+  const currentAnimalClass = getClassConfig(currentFlock?.class_type || 'poultry');
+  const showEggs = currentFlock && currentAnimalClass.producesEggs && !productionSkipped;
+  const showLitter = currentFlock && currentAnimalClass.litterTracking && !productionSkipped;
+  const showMilk = currentFlock && currentAnimalClass.producesMilk;
+  const showProduction = showEggs || showLitter || showMilk;
   const isBackdated = sessionDate !== todayString();
   const completedPercent = queue.length ? Math.round((completed.length / queue.length) * 100) : 0;
 
@@ -259,6 +267,9 @@ function ScaleHouse() {
     setInputMethod("manual");
     setEggCount("");
     setWaterConsumed("");
+    setLitterCount("");
+    setLitterSize("");
+    setLitterNotes("");
     setProductionSkipped(false);
     setSessionNotes("");
   }
@@ -301,6 +312,9 @@ function ScaleHouse() {
           : {
               egg_count: safeId(eggCount),
               water_consumed: waterConsumed === "" ? null : Number(waterConsumed),
+              litter_count: litterCount === "" ? null : Number(litterCount),
+              litter_size: litterSize === "" ? null : Number(litterSize),
+              litter_notes: litterNotes || null,
               notes: sessionNotes || null,
             },
       });
@@ -518,6 +532,7 @@ function ScaleHouse() {
           canLog={canLog}
           costPerBird={costPerBird}
           costTotal={costTotal}
+          currentAnimalClass={currentAnimalClass}
           currentFeed={currentFeed}
           currentFlock={currentFlock}
           effectiveWeight={effectiveWeight}
@@ -527,6 +542,9 @@ function ScaleHouse() {
           inputMethod={inputMethod}
           isBackdated={isBackdated}
           isDailyMode={isDailyMode}
+          litterCount={litterCount}
+          litterNotes={litterNotes}
+          litterSize={litterSize}
           mode={mode}
           productionSkipped={productionSkipped}
           queue={queue}
@@ -545,6 +563,9 @@ function ScaleHouse() {
           setFeedWeight={setFeedWeight}
           setHeadcountChange={setHeadcountChange}
           setInputMethod={setInputMethod}
+          setLitterCount={setLitterCount}
+          setLitterNotes={setLitterNotes}
+          setLitterSize={setLitterSize}
           setProductionSkipped={setProductionSkipped}
           setQuickFlockId={setQuickFlockId}
           setSelectedFeed={setSelectedFeed}
@@ -553,6 +574,9 @@ function ScaleHouse() {
           setShowDatePicker={setShowDatePicker}
           setWaterConsumed={setWaterConsumed}
           showDatePicker={showDatePicker}
+          showEggs={showEggs}
+          showLitter={showLitter}
+          showMilk={showMilk}
           showProduction={showProduction}
           stepLabel={isDailyMode ? `Step ${currentIndex + 1} of ${queue.length}` : "Quick Entry"}
           waterConsumed={waterConsumed}
@@ -1338,6 +1362,7 @@ function ScaleEntryCard(props) {
     canLog,
     costPerBird,
     costTotal,
+    currentAnimalClass,
     currentFeed,
     currentFlock,
     effectiveWeight,
@@ -1347,6 +1372,9 @@ function ScaleEntryCard(props) {
     inputMethod,
     isBackdated,
     isDailyMode,
+    litterCount,
+    litterNotes,
+    litterSize,
     productionSkipped,
     queue,
     quickFlockId,
@@ -1364,6 +1392,9 @@ function ScaleEntryCard(props) {
     setFeedWeight,
     setHeadcountChange,
     setInputMethod,
+    setLitterCount,
+    setLitterNotes,
+    setLitterSize,
     setProductionSkipped,
     setQuickFlockId,
     setSelectedFeed,
@@ -1372,6 +1403,9 @@ function ScaleEntryCard(props) {
     setShowDatePicker,
     setWaterConsumed,
     showDatePicker,
+    showEggs,
+    showLitter,
+    showMilk,
     showProduction,
     stepLabel,
     waterConsumed,
@@ -1451,7 +1485,7 @@ function ScaleEntryCard(props) {
       {/* Flock header */}
       <header className="grid gap-[14px] items-start grid-cols-[58px_minmax(0,1fr)_auto] max-[980px]:grid-cols-[48px_minmax(0,1fr)]">
         <div className="flex items-center justify-center bg-[var(--bg-base)] border border-[var(--border)] rounded-lg h-[58px] text-[30px]">
-          {flockIcon(currentFlock.animal_class_name)}
+          {getAnimalEmoji(currentFlock.class_type, currentFlock.breed_name)}
         </div>
         <div>
           <h1 className="display-font text-[32px] leading-none m-0">{currentFlock.name}</h1>
@@ -1475,7 +1509,7 @@ function ScaleEntryCard(props) {
       </header>
 
       <ScaleSection title="Headcount Check">
-        <p className="text-[var(--text-muted)] text-xs m-0">Last recorded: {currentFlock.current_headcount} birds</p>
+        <p className="text-[var(--text-muted)] text-xs m-0">Last recorded: {currentFlock.current_headcount} {currentAnimalClass.headTerm.toLowerCase()}</p>
         <div className="flex items-center gap-3">
           <button
             className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
@@ -1630,8 +1664,8 @@ function ScaleEntryCard(props) {
         </p>
       </ScaleSection>
 
-      {showProduction ? (
-        <ScaleSection title="Production">
+      {showEggs ? (
+        <ScaleSection title="Egg Collection">
           <div className="flex items-center gap-3">
             <button
               className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
@@ -1667,6 +1701,55 @@ function ScaleEntryCard(props) {
           >
             Skip production data {"→"}
           </button>
+        </ScaleSection>
+      ) : null}
+
+      {showLitter ? (
+        <ScaleSection title={`Litter / ${currentAnimalClass.youngTerm}`}>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="field">
+              <span>Litters born</span>
+              <input
+                min="0"
+                step="1"
+                type="number"
+                value={litterCount}
+                onChange={(event) => setLitterCount(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Avg litter size</span>
+              <input
+                min="0"
+                step="1"
+                type="number"
+                value={litterSize}
+                onChange={(event) => setLitterSize(event.target.value)}
+              />
+            </label>
+          </div>
+          <label className="field">
+            <span>Litter notes</span>
+            <input
+              maxLength={500}
+              type="text"
+              value={litterNotes}
+              onChange={(event) => setLitterNotes(event.target.value)}
+            />
+          </label>
+          <button
+            className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
+            type="button"
+            onClick={() => setProductionSkipped(true)}
+          >
+            Skip for now {"→"}
+          </button>
+        </ScaleSection>
+      ) : null}
+
+      {showMilk ? (
+        <ScaleSection title="Milk Production">
+          <p className="text-[var(--text-muted)] text-xs m-0">🥛 Milk tracking coming soon</p>
         </ScaleSection>
       ) : null}
 

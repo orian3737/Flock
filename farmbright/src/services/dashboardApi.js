@@ -19,7 +19,7 @@ export async function getDashboardOverview() {
   const [
     flocksResult,
     feedTypesResult,
-    todayFeedingResult,
+    todayFeedingResult,  
     todayProductionResult,
     yesterdayFeedingResult,
     yesterdayProductionResult,
@@ -30,7 +30,7 @@ export async function getDashboardOverview() {
       .from("flocks")
       .select(
         `id, name, designation, current_headcount,
-         breeds ( name, animal_classes ( name ) ),
+         breeds ( name, animal_classes ( name, class_type ) ),
          feed_assignments ( feed_types ( name ) )`
       )
       .order("name"),
@@ -145,6 +145,7 @@ export async function getDashboardOverview() {
           name: f.name,
           breed_name: f.breeds?.name || "",
           designation: f.designation,
+          class_type: f.breeds?.animal_classes?.class_type || 'poultry',
           assigned_feeds: (f.feed_assignments || []).map((a) => a.feed_types?.name).filter(Boolean),
           status: events.length ? "fed" : "pending",
           fed_at: fedAt || null,

@@ -24,12 +24,14 @@ async function remove(table, id, fallback) {
 
 // ── Animal Classes ──────────────────────────────────────────
 
-export function createAnimalClass({ user_id, name }) {
-  return insert("animal_classes", { user_id, name: name.trim() }, "Could not create animal class.");
+export function createAnimalClass({ user_id, name, class_type = 'poultry' }) {
+  return insert("animal_classes", { user_id, name: name.trim(), class_type }, "Could not create animal class.");
 }
 
-export function updateAnimalClass(id, { name }) {
-  return update("animal_classes", id, { name: name.trim() }, "Could not update animal class.");
+export function updateAnimalClass(id, { name, class_type }) {
+  const patch = { name: name.trim() };
+  if (class_type) patch.class_type = class_type;
+  return update("animal_classes", id, patch, "Could not update animal class.");
 }
 
 export function deleteAnimalClass(id) {
@@ -169,7 +171,7 @@ export async function getOnboardingSummary(userId) {
 
   const [animalClasses, feedTypes] = await Promise.all([
     selectOrThrow(
-      supabase.from("animal_classes").select("id,user_id,name").eq("user_id", userId).order("name"),
+      supabase.from("animal_classes").select("id,user_id,name,class_type").eq("user_id", userId).order("name"),
       "Could not load animal classes."
     ),
     selectOrThrow(
@@ -241,6 +243,7 @@ export async function getOnboardingSummary(userId) {
       id: ac.id,
       user_id: ac.user_id,
       name: ac.name,
+      class_type: ac.class_type || 'poultry',
       breeds: (breedsByClassId.get(ac.id) || []).sort((a, z) => a.name.localeCompare(z.name)),
     })),
     feed_types: feedTypes.map(feedTypeJson),

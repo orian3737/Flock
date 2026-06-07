@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { CLASS_CONFIG } from "../../utils/animalClass";
 import { useAuth } from "../../context/AuthContext";
 import {
   createAnimalClass,
@@ -13,14 +14,23 @@ import {
 
 const steps = ["Animal Classes", "Breeds", "Flocks", "Feed Setup", "Review"];
 const hintChips = ["Poultry", "Swine", "Goats", "Cattle", "Rabbits"];
-const designations = ["layer", "breeder", "meat", "mixed"];
+
+function detectClassType(name) {
+  const lower = name.toLowerCase();
+  if (/pig|swine|hog|boar|sow/.test(lower)) return 'swine';
+  if (/goat|doe|buck|kid/.test(lower)) return 'goat';
+  if (/cattle|cow|bull|calf|beef|dairy/.test(lower)) return 'cattle';
+  if (/rabbit|bunny|kit/.test(lower)) return 'rabbit';
+  if (/chicken|hen|rooster|poultry|duck|turkey|quail|chick/.test(lower)) return 'poultry';
+  return 'poultry';
+}
 
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function blankAnimalClass(name = "") {
-  return { tempId: makeId("class"), id: null, name };
+  return { tempId: makeId("class"), id: null, name, class_type: detectClassType(name) };
 }
 
 function blankBreed(animalClassId = null) {
@@ -141,7 +151,7 @@ function OnboardingWizard() {
       if (item.id) {
         next.push(item);
       } else {
-        const saved = await createAnimalClass({ user_id: userId, name: item.name.trim() });
+        const saved = await createAnimalClass({ user_id: userId, name: item.name.trim(), class_type: item.class_type || 'poultry' });
         next.push({ ...item, ...saved });
       }
     }
@@ -380,6 +390,7 @@ function OnboardingWizard() {
           )}
           {step === 3 && (
             <FlocksStep
+              animalClasses={createdClasses}
               breeds={createdBreeds}
               rows={flocks}
               onAdd={(breedId) => setFlocks((items) => [...items, blankFlock(breedId)])}
@@ -444,20 +455,33 @@ function AnimalClassesStep({ rows, onAdd, onHint, onRemove, onUpdate }) {
       </header>
       {/* dynamic-list: grid gap-[14px] */}
       <div className="grid gap-[14px]">
-        {rows.map((row) => (
-          // inline-row: grid gap-[10px] grid-cols-[minmax(0,1fr)_42px]
-          <div className="grid gap-[10px] grid-cols-[minmax(0,1fr)_42px]" key={row.tempId}>
-            <input
-              className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[42px] outline-none py-[9px] px-[10px] focus:border-[var(--accent-primary)]"
-              value={row.name}
-              onChange={(event) => onUpdate(row.tempId, { name: event.target.value })}
-              placeholder="Animal type"
-            />
-            <button className="icon-button" type="button" onClick={() => onRemove(row.tempId)} aria-label="Remove animal type">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
+        {rows.map((row) => {
+          const detected = detectClassType(row.name);
+          const cfg = CLASS_CONFIG[detected];
+          return (
+            <div className="grid gap-[6px]" key={row.tempId}>
+              <div className="grid gap-[10px] grid-cols-[minmax(0,1fr)_42px]">
+                <input
+                  className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[42px] outline-none py-[9px] px-[10px] focus:border-[var(--accent-primary)]"
+                  value={row.name}
+                  onChange={(event) => {
+                    const name = event.target.value;
+                    onUpdate(row.tempId, { name, class_type: detectClassType(name) });
+                  }}
+                  placeholder="Animal type"
+                />
+                <button className="icon-button" type="button" onClick={() => onRemove(row.tempId)} aria-label="Remove animal type">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              {row.name.trim() && cfg && (
+                <p className="text-[var(--text-muted)] text-xs m-0 pl-1">
+                  {cfg.emoji} Detected: {detected} — {cfg.groupTerm}, {cfg.headTerm}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
       <button className="secondary-button" type="button" onClick={onAdd}>
         <Plus size={16} /> Add Animal Type
@@ -465,7 +489,6 @@ function AnimalClassesStep({ rows, onAdd, onHint, onRemove, onUpdate }) {
       {/* hint-chips: flex flex-wrap gap-2 */}
       <div className="flex flex-wrap gap-2">
         {hintChips.map((hint) => (
-          // hint chip button: bg-[--bg-elevated] border border-[--border] rounded-full text-[--text-secondary] min-h-[34px] py-[7px] px-3
           <button
             className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[34px] py-[7px] px-3"
             type="button"
@@ -518,73 +541,77 @@ function BreedsStep({ animalClasses, rows, onAdd, onRemove, onUpdate }) {
   );
 }
 
-function FlocksStep({ breeds, rows, onAdd, onRemove, onUpdate }) {
+function FlocksStep({ animalClasses, breeds, rows, onAdd, onRemove, onUpdate }) {
+  function getDesignationsForBreed(breed) {
+    const ac = animalClasses.find((c) => c.id === breed.animal_class_id);
+    const classType = ac?.class_type || 'poultry';
+    return (CLASS_CONFIG[classType] || CLASS_CONFIG.poultry).designations;
+  }
+
   return (
-    // wizard-step: grid gap-[18px]
     <div className="grid gap-[18px]">
       <header>
         <p className="eyebrow">Step 3</p>
         <h1 className="display-font">Create flock groups</h1>
         <p className="text-[var(--text-secondary)] text-[13px] mt-[10px] mb-[6px]">Group animals by pen, purpose, or management batch.</p>
       </header>
-      {breeds.map((breed) => (
-        <section className="panel-card grid gap-[14px]" key={breed.id}>
-          <div className="text-[var(--text-secondary)] font-bold">{breed.name}</div>
-          {rows
-            .filter((row) => row.breed_id === breed.id)
-            .map((row) => (
-              // flock-card: bg-[rgba(15,26,15,0.62)] border border-[--border] rounded-lg grid gap-3
-              //   grid-cols-[repeat(3,minmax(0,1fr))_auto_42px]; <=980px: grid-cols-1
-              <div
-                className="bg-[rgba(15,26,15,0.62)] border border-[var(--border)] rounded-lg grid gap-3 p-[14px] grid-cols-[repeat(3,minmax(0,1fr))_auto_42px] max-[980px]:grid-cols-1"
-                key={row.tempId}
-              >
-                <label className="field">
-                  <span>Group name</span>
-                  <input value={row.name} onChange={(event) => onUpdate(row.tempId, { name: event.target.value })} />
-                </label>
-                <label className="field">
-                  <span>Pen name</span>
-                  <input value={row.pen_name} onChange={(event) => onUpdate(row.tempId, { pen_name: event.target.value })} />
-                </label>
-                <label className="field">
-                  <span>Headcount</span>
-                  <input
-                    min="0"
-                    type="number"
-                    value={row.current_headcount}
-                    onChange={(event) => onUpdate(row.tempId, { current_headcount: event.target.value })}
-                  />
-                </label>
-                {/* designation-group: flex flex-wrap gap-2 content-end; <=980px buttons still in row */}
-                <div className="flex flex-wrap gap-2 content-end" role="group" aria-label="Designation">
-                  {designations.map((designation) => (
-                    <button
-                      className={[
-                        "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-muted)] min-h-[34px] py-[7px] px-3 capitalize",
-                        row.designation === designation
-                          ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold"
-                          : "",
-                      ].join(" ")}
-                      key={designation}
-                      type="button"
-                      onClick={() => onUpdate(row.tempId, { designation })}
-                    >
-                      {designation}
-                    </button>
-                  ))}
+      {breeds.map((breed) => {
+        const designations = getDesignationsForBreed(breed);
+        return (
+          <section className="panel-card grid gap-[14px]" key={breed.id}>
+            <div className="text-[var(--text-secondary)] font-bold">{breed.name}</div>
+            {rows
+              .filter((row) => row.breed_id === breed.id)
+              .map((row) => (
+                <div
+                  className="bg-[rgba(15,26,15,0.62)] border border-[var(--border)] rounded-lg grid gap-3 p-[14px] grid-cols-[repeat(3,minmax(0,1fr))_auto_42px] max-[980px]:grid-cols-1"
+                  key={row.tempId}
+                >
+                  <label className="field">
+                    <span>Group name</span>
+                    <input value={row.name} onChange={(event) => onUpdate(row.tempId, { name: event.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>Pen name</span>
+                    <input value={row.pen_name} onChange={(event) => onUpdate(row.tempId, { pen_name: event.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>Headcount</span>
+                    <input
+                      min="0"
+                      type="number"
+                      value={row.current_headcount}
+                      onChange={(event) => onUpdate(row.tempId, { current_headcount: event.target.value })}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2 content-end" role="group" aria-label="Designation">
+                    {designations.map((designation) => (
+                      <button
+                        className={[
+                          "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-muted)] min-h-[34px] py-[7px] px-3 capitalize",
+                          row.designation === designation
+                            ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold"
+                            : "",
+                        ].join(" ")}
+                        key={designation}
+                        type="button"
+                        onClick={() => onUpdate(row.tempId, { designation })}
+                      >
+                        {designation}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="icon-button self-end" type="button" onClick={() => onRemove(row.tempId)} aria-label="Remove flock">
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                {/* remove-row: icon-button self-end */}
-                <button className="icon-button self-end" type="button" onClick={() => onRemove(row.tempId)} aria-label="Remove flock">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          <button className="secondary-button" type="button" onClick={() => onAdd(breed.id)}>
-            <Plus size={16} /> Add Group
-          </button>
-        </section>
-      ))}
+              ))}
+            <button className="secondary-button" type="button" onClick={() => onAdd(breed.id)}>
+              <Plus size={16} /> Add Group
+            </button>
+          </section>
+        );
+      })}
     </div>
   );
 }

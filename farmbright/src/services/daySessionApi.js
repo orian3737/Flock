@@ -13,7 +13,7 @@ export async function getTodaySession(date = null) {
         input_method,
         feed_types ( id, name, unit, cost_per_unit ),
         flocks ( id, name, current_headcount,
-          breeds ( name, animal_classes ( name ) )
+          breeds ( name, animal_classes ( name, class_type ) )
         )
       `)
       .eq('date', sessionDate)

@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useState } from "re
 import { AlertTriangle, Check, Circle, CircleArrowDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
 import { dismissInventoryAlert, getDashboardOverview } from "../../services/dashboardApi";
 
@@ -69,7 +70,7 @@ function Dashboard() {
   const totalFlocks = today.flocks_total || 0;
   const hasStarted  = fedCount > 0;
   const allFed      = totalFlocks > 0 && fedCount === totalFlocks;
-  const hasProduction = flocks.some((f) => ["layer", "breeder", "mixed"].includes(f.designation));
+  const hasEggProduction = flocks.some((f) => getClassConfig(f.class_type).producesEggs);
   const feedProgress  = totalFlocks ? Math.round((fedCount / totalFlocks) * 100) : 0;
   const feedingPanelState = allFed ? "complete" : hasStarted ? "compact" : "prominent";
   const flocksFedTone = allFed ? "var(--accent-primary)" : hasStarted ? "var(--accent-warn)" : "var(--border)";
@@ -160,7 +161,10 @@ function Dashboard() {
                     {statusIcon(flock.status)}
                   </span>
                   <div className="grid gap-1 min-w-0">
-                    <strong className="text-[var(--text-primary)] break-words">{flock.name}</strong>
+                    <strong className="text-[var(--text-primary)] break-words">
+                      <span aria-hidden="true">{getAnimalEmoji(flock.class_type, flock.breed_name)} </span>
+                      {flock.name}
+                    </strong>
                     <span className="text-[var(--text-muted)] text-xs">
                       {flock.breed_name}
                       <span className="designation-badge ml-2">{flock.designation}</span>
@@ -215,7 +219,7 @@ function Dashboard() {
             <p className="text-[var(--text-muted)] text-xs m-0">Yesterday: {formatMoney(yesterday.total_feed_cost)}</p>
           </article>
 
-          {hasProduction ? (
+          {hasEggProduction ? (
             <article
               className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[140px] lg:min-h-[188px] p-4 lg:p-5 min-w-0"
               style={{ borderLeftColor: "var(--accent-primary)" }}
