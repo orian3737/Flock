@@ -8,8 +8,7 @@ export async function getTodaySession(date = null) {
       .from('feeding_events')
       .select(`
         id, flock_id, date, timestamp,
-        total_weight, weight_per_bird,
-        cost_total, cost_per_bird,
+        total_weight, cost_per_lb_at_time,
         input_method,
         feed_types ( id, name, unit, cost_per_unit ),
         flocks ( id, name, current_headcount,
@@ -32,7 +31,16 @@ export async function getTodaySession(date = null) {
   if (prodResult.error) throw prodResult.error;
   if (casResult.error) throw casResult.error;
 
-  const feedings   = feedResult.data || [];
+  const feedings = (feedResult.data || []).map((e) => {
+    const headcount = Math.max(e.flocks?.current_headcount || 1, 1);
+    const cost_total = (e.total_weight || 0) * (e.cost_per_lb_at_time || 0);
+    return {
+      ...e,
+      cost_total,
+      weight_per_bird: (e.total_weight || 0) / headcount,
+      cost_per_bird: cost_total / headcount,
+    };
+  });
   const production = prodResult.data || [];
   const casualties = casResult.data || [];
 
