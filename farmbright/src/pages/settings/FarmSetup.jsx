@@ -215,7 +215,7 @@ function FarmSetup() {
 
         <section className="settings-panel">
           <div className="settings-panel-header">
-            <strong>Feed Types</strong>
+            <strong className="display-font text-[28px] leading-none text-[#e8f5e9]">Feed Types</strong>
           </div>
           <div className="settings-panel-body">
             <div className="feed-type-editor-list">
