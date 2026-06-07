@@ -647,13 +647,13 @@ function ModalFrame({ children, onClose, title }) {
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.45)] p-5 w-full max-w-[480px] max-h-[calc(100vh-40px)] overflow-auto"
+        className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.45)] p-5 w-full max-w-[480px] max-h-[calc(100vh-40px)] overflow-auto text-[#e8f5e9]"
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
         <header className="flex items-center justify-between gap-3 mb-5">
-          <h2 className="display-font text-2xl leading-none m-0">{title}</h2>
+          <h2 className="display-font text-2xl leading-none m-0 text-[#e8f5e9]">{title}</h2>
           <button
             className="inline-flex items-center justify-center flex-none h-12 w-12 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[#e8f5e9] hover:bg-[rgba(198,40,40,0.18)] hover:border-[rgba(198,40,40,0.7)] hover:text-[var(--accent-danger)] transition-colors p-0"
             type="button"
