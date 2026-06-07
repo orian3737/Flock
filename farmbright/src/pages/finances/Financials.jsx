@@ -305,7 +305,7 @@ function RevenueModal({ flocks, onClose, onSubmit }) {
         aria-label="Log Revenue"
       >
         <header className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="display-font text-2xl leading-none m-0">Log Revenue</h2>
+          <h2 className="display-font text-2xl leading-none m-0 text-[var(--text-primary)]">Log Revenue</h2>
           <button className="inline-flex items-center justify-center flex-none h-12 w-12 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[#e8f5e9] hover:bg-[rgba(198,40,40,0.18)] hover:border-[rgba(198,40,40,0.7)] hover:text-[var(--accent-danger)] transition-colors p-0" type="button" onClick={onClose} aria-label="Close revenue modal">
             <X size={28} />
           </button>
