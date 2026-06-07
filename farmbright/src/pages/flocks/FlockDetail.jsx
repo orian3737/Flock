@@ -5,6 +5,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import InlineFeedback from "../../components/InlineFeedback";
 import { getFlockDetail, logCasualty, logProduction } from "../../services/flocksApi";
 import { getFlockYoungSales, logYoungSale } from "../../services/revenueApi";
+import { supabase } from "../../services/supabaseClient";
+import { getClassConfig } from "../../utils/animalClass";
 import { useAnimalClass } from "../../hooks/useAnimalClass";
 
 const todayString = () => new Date().toISOString().slice(0, 10);
@@ -17,6 +19,7 @@ function FlockDetail() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [youngSales, setYoungSales] = useState([]);
+  const [litterLogs, setLitterLogs] = useState([]);
 
   const flock = detail?.flock;
   const stats = detail?.stats || {};
@@ -32,6 +35,18 @@ function FlockDetail() {
       ]);
       setDetail(flockDetail);
       setYoungSales(sales);
+      const classType = flockDetail?.flock?.class_type || 'poultry';
+      if (getClassConfig(classType).litterTracking) {
+        const { data: litters } = await supabase
+          .from('production_logs')
+          .select('id, date, litter_count, litter_size, litter_notes')
+          .eq('flock_id', id)
+          .not('litter_count', 'is', null)
+          .order('date', { ascending: false });
+        setLitterLogs(litters || []);
+      } else {
+        setLitterLogs([]);
+      }
       return true;
     } catch (error) {
       setFeedback({ type: "error", message: formatError(error) });
@@ -198,10 +213,13 @@ function FlockDetail() {
               </div>
               <div style={{ padding: "0 18px 18px" }}>
                 <DataTable
-                  columns={["Date", animalClass.youngTerm + " Born", "Notes"]}
-                  rows={(detail.casualty_history || [])
-                    .filter((e) => e.change_amount > 0)
-                    .map((e) => [e.date, `+${e.change_amount}`, e.notes || ""])}
+                  columns={["Date", "Litters", `${animalClass.youngTerm} Born`, "Notes"]}
+                  rows={litterLogs.map((e) => [
+                    e.date,
+                    e.litter_count ?? "",
+                    e.litter_size != null ? e.litter_count * e.litter_size : "",
+                    e.litter_notes || "",
+                  ])}
                   empty="No litter events logged yet"
                 />
               </div>

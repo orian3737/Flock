@@ -104,6 +104,7 @@ function ScaleHouse() {
   const [litterCount, setLitterCount] = useState("");
   const [litterSize, setLitterSize] = useState("");
   const [litterNotes, setLitterNotes] = useState("");
+  const [birthsToday, setBirthsToday] = useState(false);
   const [productionSkipped, setProductionSkipped] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
   const [sessionDate, setSessionDate] = useState(todayString());
@@ -270,6 +271,7 @@ function ScaleHouse() {
     setLitterCount("");
     setLitterSize("");
     setLitterNotes("");
+    setBirthsToday(false);
     setProductionSkipped(false);
     setSessionNotes("");
   }
@@ -563,6 +565,8 @@ function ScaleHouse() {
           setFeedWeight={setFeedWeight}
           setHeadcountChange={setHeadcountChange}
           setInputMethod={setInputMethod}
+          birthsToday={birthsToday}
+          setBirthsToday={setBirthsToday}
           setLitterCount={setLitterCount}
           setLitterNotes={setLitterNotes}
           setLitterSize={setLitterSize}
@@ -1358,6 +1362,8 @@ function ScaleEntryCard(props) {
   const {
     adjustedHeadcount,
     autoCapture,
+    birthsToday,
+    setBirthsToday,
     casualtyNotes,
     canLog,
     costPerBird,
@@ -1503,6 +1509,9 @@ function ScaleEntryCard(props) {
             "border-[var(--border)] text-[var(--text-secondary)]"
           ].join(" ")}>
             {currentFlock.designation}
+          </span>
+          <span className="border border-[var(--border)] rounded-full py-1 px-[9px] text-[var(--text-muted)] capitalize">
+            {currentAnimalClass.groupTerm}
           </span>
           <span>{stepLabel}</span>
         </div>
@@ -1706,37 +1715,56 @@ function ScaleEntryCard(props) {
 
       {showLitter ? (
         <ScaleSection title={`Litter / ${currentAnimalClass.youngTerm}`}>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="field">
-              <span>Litters born</span>
-              <input
-                min="0"
-                step="1"
-                type="number"
-                value={litterCount}
-                onChange={(event) => setLitterCount(event.target.value)}
-              />
-            </label>
-            <label className="field">
-              <span>Avg litter size</span>
-              <input
-                min="0"
-                step="1"
-                type="number"
-                value={litterSize}
-                onChange={(event) => setLitterSize(event.target.value)}
-              />
-            </label>
-          </div>
-          <label className="field">
-            <span>Litter notes</span>
+          <label className="flex items-center gap-2 text-[var(--text-secondary)] text-sm">
             <input
-              maxLength={500}
-              type="text"
-              value={litterNotes}
-              onChange={(event) => setLitterNotes(event.target.value)}
+              checked={birthsToday}
+              type="checkbox"
+              onChange={(event) => {
+                setBirthsToday(event.target.checked);
+                if (!event.target.checked) {
+                  setLitterCount("");
+                  setLitterSize("");
+                  setLitterNotes("");
+                }
+              }}
             />
+            Births Today?
           </label>
+          {birthsToday ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="field">
+                  <span>Litters born</span>
+                  <input
+                    min="0"
+                    step="1"
+                    type="number"
+                    value={litterCount}
+                    onChange={(event) => setLitterCount(event.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  <span>{currentAnimalClass.youngTerm} born</span>
+                  <input
+                    min="0"
+                    step="1"
+                    type="number"
+                    value={litterSize}
+                    onChange={(event) => setLitterSize(event.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                <span>Notes</span>
+                <input
+                  maxLength={500}
+                  type="text"
+                  value={litterNotes}
+                  onChange={(event) => setLitterNotes(event.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
           <button
             className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
             type="button"
