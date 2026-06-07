@@ -204,8 +204,8 @@ function AddFlockModal({ breedOptions, feedTypes, onClose, onSubmit }) {
       <form className="modal-card" onSubmit={submit}>
         <div className="modal-header">
           <h2 className="display-font">Add Flock</h2>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
-            <X size={16} />
+          <button className="inline-flex items-center justify-center flex-none h-12 w-12 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[#e8f5e9] hover:bg-[rgba(198,40,40,0.18)] hover:border-[rgba(198,40,40,0.7)] hover:text-[var(--accent-danger)] transition-colors p-0" type="button" onClick={onClose} aria-label="Close">
+            <X size={28} />
           </button>
         </div>
         <div className="settings-form-grid">

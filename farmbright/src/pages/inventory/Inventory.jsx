@@ -420,8 +420,8 @@ function FormField({ hint, id, label, children }) {
   return (
     <label className="grid gap-1.5" htmlFor={id}>
       <div>
-        <p className="text-[var(--text-primary)] text-[13px] font-semibold m-0">{label}</p>
-        {hint ? <p className="text-[var(--text-muted)] text-[11px] m-0 mt-0.5 leading-snug">{hint}</p> : null}
+        <p className="text-[#e8f5e9] text-[13px] font-semibold m-0">{label}</p>
+        {hint ? <p className="text-[#a5d6a7] text-[11px] m-0 mt-0.5 leading-snug">{hint}</p> : null}
       </div>
       {children}
     </label>
@@ -655,12 +655,12 @@ function ModalFrame({ children, onClose, title }) {
         <header className="flex items-center justify-between gap-3 mb-5">
           <h2 className="display-font text-2xl leading-none m-0">{title}</h2>
           <button
-            className="inline-flex items-center justify-center h-10 w-10 rounded-lg border border-[var(--border)] bg-transparent text-[var(--text-secondary)] hover:border-[var(--accent-danger)] hover:text-[var(--accent-danger)] transition-colors flex-none p-0"
+            className="inline-flex items-center justify-center flex-none h-12 w-12 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[#e8f5e9] hover:bg-[rgba(198,40,40,0.18)] hover:border-[rgba(198,40,40,0.7)] hover:text-[var(--accent-danger)] transition-colors p-0"
             type="button"
             onClick={onClose}
             aria-label="Close modal"
           >
-            <X size={22} aria-hidden="true" />
+            <X size={28} aria-hidden="true" />
           </button>
         </header>
         {children}
