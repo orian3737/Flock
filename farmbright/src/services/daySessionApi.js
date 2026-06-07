@@ -11,9 +11,7 @@ export async function getTodaySession(date = null) {
         total_weight, cost_per_lb_at_time,
         input_method,
         feed_types ( id, name, unit, cost_per_unit ),
-        flocks ( id, name, current_headcount,
-          breeds ( name, animal_classes ( name, class_type ) )
-        )
+        flocks ( id, name, current_headcount )
       `)
       .eq('date', sessionDate)
       .order('timestamp', { ascending: true }),
