@@ -14,7 +14,7 @@
   --accent-danger: #c62828;
   --text-primary: #e8f5e9;
   --text-secondary: #a5d6a7;
-  --text-muted: #558b5a;
+  --text-muted: #6ea871;
   --border: #2e7d32;
 }
 
@@ -112,7 +112,9 @@ a { color: inherit; text-decoration: none; }
   background: rgba(255, 143, 0, 0.14);
   border-left: 4px solid var(--accent-warn);
   border-radius: 6px;
+  color: var(--text-primary);
   display: flex;
+  font-size: 13px;
   gap: 8px;
   padding: 12px 14px;
 }
