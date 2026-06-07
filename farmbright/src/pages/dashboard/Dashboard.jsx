@@ -162,7 +162,7 @@ function Dashboard() {
                   </span>
                   <div className="grid gap-1 min-w-0">
                     <strong className="text-[var(--text-primary)] break-words">
-                      <span aria-hidden="true">{getAnimalEmoji(flock.class_type, flock.breed_name)} </span>
+                      <span aria-hidden="true">{getAnimalEmoji(flock)} </span>
                       {flock.name}
                     </strong>
                     <span className="text-[var(--text-muted)] text-xs">
