@@ -156,6 +156,7 @@ function FarmSetup() {
                   {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </button>
                 <InlineNameEditor
+                  className="display-font text-[28px] leading-none text-[#e8f5e9]"
                   editing={isEditing("animalClass", animalClass.id)}
                   value={isEditing("animalClass", animalClass.id) ? draft.name : animalClass.name}
                   onChange={(value) => updateDraft("name", value)}
@@ -175,6 +176,7 @@ function FarmSetup() {
                     <section className="breed-editor" key={breed.id}>
                       <div className="settings-row">
                         <InlineNameEditor
+                          className="display-font text-[20px] leading-none text-[#e8f5e9]"
                           editing={isEditing("breed", breed.id)}
                           value={isEditing("breed", breed.id) ? draft.name : breed.name}
                           onChange={(value) => updateDraft("name", value)}
@@ -238,11 +240,11 @@ function FarmSetup() {
   );
 }
 
-function InlineNameEditor({ editing, onChange, value }) {
+function InlineNameEditor({ className = "", editing, onChange, value }) {
   if (editing) {
     return <input className="settings-inline-input" value={value || ""} onChange={(event) => onChange(event.target.value)} />;
   }
-  return <strong>{value}</strong>;
+  return <strong className={className}>{value}</strong>;
 }
 
 function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
