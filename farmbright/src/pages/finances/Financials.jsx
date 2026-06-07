@@ -312,7 +312,7 @@ function RevenueModal({ flocks, onClose, onSubmit }) {
         </header>
         <form className="grid gap-3" onSubmit={submit}>
           <label className="field">
-            Amount
+            <span>Amount</span>
             <input required min="0" step="0.01" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </label>
           <div className="flex flex-wrap gap-2">
@@ -332,14 +332,14 @@ function RevenueModal({ flocks, onClose, onSubmit }) {
             ))}
           </div>
           <label className="field">
-            Flock
+            <span>Flock</span>
             <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
               <option value="">Farm-wide</option>
               {flocks.map((f) => <option key={f.flock_id} value={f.flock_id}>{f.name}</option>)}
             </select>
           </label>
-          <label className="field">Date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-          <label className="field">Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+          <label className="field"><span>Date</span><input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+          <label className="field"><span>Notes</span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
           <button className="primary-button full-width" type="submit">Save Revenue</button>
         </form>
       </div>
