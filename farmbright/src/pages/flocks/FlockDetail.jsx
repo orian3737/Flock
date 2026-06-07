@@ -24,7 +24,8 @@ function FlockDetail() {
   const flock = detail?.flock;
   const stats = detail?.stats || {};
   const animalClass = useAnimalClass(flock);
-  const showProduction = Boolean(flock && animalClass.producesEggs);
+  const showProduction = Boolean(flock && animalClass.producesEggs && !animalClass.workingAnimal);
+  const showWorking = Boolean(flock && animalClass.workingAnimal);
 
   async function refresh() {
     setLoading(true);
@@ -35,7 +36,7 @@ function FlockDetail() {
       ]);
       setDetail(flockDetail);
       setYoungSales(sales);
-      const classType = flockDetail?.flock?.class_type || 'poultry';
+      const classType = flockDetail?.flock?.class_type || 'other';
       if (getClassConfig(classType).litterTracking) {
         const { data: litters } = await supabase
           .from('production_logs')
@@ -250,7 +251,7 @@ function FlockDetail() {
             </section>
           ) : null}
 
-          {animalClass.producesMilk ? (
+          {animalClass.producesMilk && !showWorking ? (
             <section className="settings-panel" style={{ padding: "18px" }}>
               <h2 className="display-font mb-3">Milk Production</h2>
               <div className="opacity-50">
@@ -258,6 +259,15 @@ function FlockDetail() {
                   🥛 Milk tracking — coming soon
                 </span>
               </div>
+            </section>
+          ) : null}
+
+          {showWorking ? (
+            <section className="settings-panel" style={{ padding: "18px" }}>
+              <h2 className="display-font mb-3">Working Animal</h2>
+              <p className="text-[var(--text-muted)] text-sm m-0">
+                🛡️ This is a guardian / working animal. Production metrics (eggs, milk, litter) are not tracked.
+              </p>
             </section>
           ) : null}
 

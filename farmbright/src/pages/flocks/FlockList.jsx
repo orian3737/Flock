@@ -89,11 +89,16 @@ function FlockList() {
           >
             <div className="flex items-center justify-between gap-2.5">
               <span className={`designation-badge ${flock.designation}`}>{flock.designation}</span>
+              {flock.working_animal && (
+                <span className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-muted)] text-[11px] px-2 py-0.5">
+                  🛡️ working
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2.5">
               <span className="text-[30px]" aria-hidden="true">
-                {getAnimalEmoji(flock.class_type, flock.breed_name)}
+                {getAnimalEmoji(flock)}
               </span>
               <h2 className="display-font m-0">{flock.name}</h2>
             </div>
@@ -110,7 +115,7 @@ function FlockList() {
                 {flock.current_headcount}
               </strong>
               <span className="text-[var(--text-muted)] text-xs pb-1">
-                {getClassConfig({ class_type: flock.class_type }).headTerm.toLowerCase()}
+                {getClassConfig(flock.class_type).headTerm.toLowerCase()}
               </span>
               <em
                 className={`inline-flex items-center gap-1.5 text-xs not-italic pb-1 ${

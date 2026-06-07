@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
-import { CLASS_CONFIG } from "../../utils/animalClass";
+import { CLASS_CONFIG, SPECIES_MAP } from "../../utils/animalClass";
 import { useAuth } from "../../context/AuthContext";
+import CustomSpeciesForm from "../../components/CustomSpeciesForm";
 import InlineFeedback from "../../components/InlineFeedback";
 import {
   createBreed,
@@ -12,10 +13,23 @@ import {
   deleteFlock,
   getOnboardingSummary,
   updateAnimalClass,
+  updateAnimalClassFlags,
   updateBreed,
   updateFeedType,
   updateFlock,
 } from "../../services/onboardingApi";
+
+function classTypeEmoji(classType) {
+  return Object.values(SPECIES_MAP).find((s) => s.class_type === classType)?.emoji || '🐾';
+}
+
+const FLAG_LABELS = [
+  { key: 'produces_eggs',  label: '🥚 Eggs' },
+  { key: 'produces_milk',  label: '🥛 Milk' },
+  { key: 'produces_meat',  label: '🥩 Meat' },
+  { key: 'produces_young', label: '🐣 Young' },
+  { key: 'working_animal', label: '🛡️ Working' },
+];
 
 const designations = ["layer", "breeder", "meat", "mixed"];
 
@@ -30,6 +44,7 @@ function FarmSetup() {
   const [editingBreedId, setEditingBreedId] = useState(null);
   const [editingBreedName, setEditingBreedName] = useState("");
   const [newBreedName, setNewBreedName] = useState({});
+  const [showCustomForm, setShowCustomForm] = useState(false);
 
   async function loadSummary() {
     if (!profile?.id) return;
@@ -149,6 +164,16 @@ function FarmSetup() {
     }
   }
 
+  async function handleFlagToggle(animalClassId, flagKey, currentValue) {
+    setFeedback(null);
+    try {
+      await updateAnimalClassFlags(animalClassId, { [flagKey]: !currentValue });
+      if (await loadSummary()) setFeedback({ type: 'success', message: 'Production flag updated.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: formatError(err) });
+    }
+  }
+
   async function saveBreedEdit(breedId) {
     const name = editingBreedName.trim();
     if (!name) return;
@@ -212,25 +237,47 @@ function FarmSetup() {
               {isEditing("animalClass", animalClass.id) && (
                 <div className="px-4 pb-3 grid gap-2">
                   <div className="flex flex-wrap gap-2">
-                    {Object.entries(CLASS_CONFIG).map(([type, cfg]) => (
+                    {Object.keys(CLASS_CONFIG).map((type) => (
                       <button
                         key={type}
                         type="button"
                         className={[
                           "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[32px] py-[6px] px-3 text-xs capitalize",
-                          (draft.class_type || 'poultry') === type
+                          (draft.class_type || 'other') === type
                             ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold"
                             : "",
                         ].join(" ")}
                         onClick={() => updateDraft("class_type", type)}
                       >
-                        {cfg.emoji} {type}
+                        {classTypeEmoji(type)} {type}
                       </button>
                     ))}
                   </div>
                   <p className="text-[var(--text-muted)] text-xs m-0">
                     Animal type controls terminology, production tracking, and designation options.
                   </p>
+                </div>
+              )}
+
+              {!isEditing("animalClass", animalClass.id) && open && (
+                <div className="px-4 pb-2">
+                  <div className="flex flex-wrap gap-2">
+                    {FLAG_LABELS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={[
+                          'border rounded-full text-xs px-3 py-1 font-mono',
+                          animalClass[key]
+                            ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold'
+                            : 'bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-secondary)]',
+                        ].join(' ')}
+                        onClick={() => handleFlagToggle(animalClass.id, key, animalClass[key])}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -323,6 +370,31 @@ function FarmSetup() {
             </section>
           );
         })}
+
+        <section className="settings-panel">
+          <div className="settings-panel-header">
+            <strong className="display-font text-[22px] leading-none text-[#e8f5e9]">+ Add Custom Animal Type</strong>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setShowCustomForm((v) => !v)}
+            >
+              {showCustomForm ? 'Cancel' : 'Add'}
+            </button>
+          </div>
+          {showCustomForm && (
+            <div className="px-4 pb-4">
+              <CustomSpeciesForm
+                userId={profile?.id}
+                onAdd={(newClass) => {
+                  setShowCustomForm(false);
+                  loadSummary();
+                  setFeedback({ type: 'success', message: `${newClass.name} added.` });
+                }}
+              />
+            </div>
+          )}
+        </section>
 
         <section className="settings-panel">
           <div className="settings-panel-header">

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { CLASS_CONFIG } from "../../utils/animalClass";
+import { CLASS_CONFIG, SPECIES_MAP } from "../../utils/animalClass";
+import CustomSpeciesForm from "../../components/CustomSpeciesForm";
 import { useAuth } from "../../context/AuthContext";
 import {
   createAnimalClass,
@@ -13,7 +14,11 @@ import {
 } from "../../services/onboardingApi";
 
 const steps = ["Animal Classes", "Breeds", "Flocks", "Feed Setup", "Review"];
-const hintChips = ["Poultry", "Swine", "Goats", "Cattle", "Rabbits"];
+const hintChips = ["Poultry", "Swine", "Goats", "Cattle", "Rabbits", "Guardian Dogs"];
+
+function classTypeEmoji(classType) {
+  return Object.values(SPECIES_MAP).find((s) => s.class_type === classType)?.emoji || '🐾';
+}
 
 function detectClassType(name) {
   const lower = name.toLowerCase();
@@ -22,7 +27,8 @@ function detectClassType(name) {
   if (/cattle|cow|bull|calf|beef|dairy/.test(lower)) return 'cattle';
   if (/rabbit|bunny|kit/.test(lower)) return 'rabbit';
   if (/chicken|hen|rooster|poultry|duck|turkey|quail|chick/.test(lower)) return 'poultry';
-  return 'poultry';
+  if (/dog|guardian|lgd|livestock guardian|pyrenees|anatolian/.test(lower)) return 'guardian';
+  return 'other';
 }
 
 function makeId(prefix) {
@@ -84,6 +90,7 @@ function OnboardingWizard() {
   const [feedAssignments, setFeedAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showCustomForm, setShowCustomForm] = useState(false);
 
   const createdClasses = animalClasses.filter((item) => item.id);
   const createdBreeds = breeds.filter((item) => item.id);
@@ -151,7 +158,7 @@ function OnboardingWizard() {
       if (item.id) {
         next.push(item);
       } else {
-        const saved = await createAnimalClass({ user_id: userId, name: item.name.trim(), class_type: item.class_type || 'poultry' });
+        const saved = await createAnimalClass({ user_id: userId, name: item.name.trim(), class_type: item.class_type || 'other' });
         next.push({ ...item, ...saved });
       }
     }
@@ -269,6 +276,11 @@ function OnboardingWizard() {
     });
   }
 
+  function handleCustomAdd(newClass) {
+    setAnimalClasses((items) => [...items, { tempId: makeId("class"), ...newClass }]);
+    setShowCustomForm(false);
+  }
+
   function launch() {
     localStorage.setItem("Flock_farm_name", farmName || "Flock Farm");
     markOnboarded();
@@ -370,6 +382,10 @@ function OnboardingWizard() {
           {step === 1 && (
             <AnimalClassesStep
               rows={animalClasses}
+              userId={userId}
+              showCustomForm={showCustomForm}
+              setShowCustomForm={setShowCustomForm}
+              onAddCustom={handleCustomAdd}
               onAdd={() => setAnimalClasses((items) => [...items, blankAnimalClass()])}
               onHint={addHint}
               onRemove={(id) => removeFromCollection(setAnimalClasses, id)}
@@ -440,7 +456,7 @@ function OnboardingWizard() {
   );
 }
 
-function AnimalClassesStep({ rows, onAdd, onHint, onRemove, onUpdate }) {
+function AnimalClassesStep({ rows, userId, showCustomForm, setShowCustomForm, onAddCustom, onAdd, onHint, onRemove, onUpdate }) {
   return (
     // wizard-step: grid gap-[18px]
     <div className="grid gap-[18px]">
@@ -473,7 +489,7 @@ function AnimalClassesStep({ rows, onAdd, onHint, onRemove, onUpdate }) {
               </div>
               {row.name.trim() && cfg && (
                 <p className="text-[var(--text-muted)] text-xs m-0 pl-1">
-                  {cfg.emoji} Detected: {detected} — {cfg.groupTerm}, {cfg.headTerm}
+                  {classTypeEmoji(detected)} Detected: {detected} — {cfg.groupTerm}, {cfg.headTerm}
                 </p>
               )}
             </div>
@@ -496,6 +512,16 @@ function AnimalClassesStep({ rows, onAdd, onHint, onRemove, onUpdate }) {
           </button>
         ))}
       </div>
+      <button
+        className="secondary-button"
+        type="button"
+        onClick={() => setShowCustomForm((v) => !v)}
+      >
+        <Plus size={16} /> {showCustomForm ? 'Cancel custom type' : 'Add Custom Animal Type'}
+      </button>
+      {showCustomForm && (
+        <CustomSpeciesForm userId={userId} onAdd={onAddCustom} />
+      )}
     </div>
   );
 }
@@ -541,8 +567,8 @@ function BreedsStep({ animalClasses, rows, onAdd, onRemove, onUpdate }) {
 function FlocksStep({ animalClasses, breeds, rows, onAdd, onRemove, onUpdate }) {
   function getDesignationsForBreed(breed) {
     const ac = animalClasses.find((c) => c.id === breed.animal_class_id);
-    const classType = ac?.class_type || 'poultry';
-    return (CLASS_CONFIG[classType] || CLASS_CONFIG.poultry).designations;
+    const classType = ac?.class_type || 'other';
+    return (CLASS_CONFIG[classType] || CLASS_CONFIG.other).designations;
   }
 
   return (

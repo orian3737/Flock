@@ -144,11 +144,12 @@ function ScaleHouse() {
   const costTotal = currentFeed ? effectiveWeight * (currentFeed.cost_per_lb ?? currentFeed.cost_per_unit ?? 0) : 0;
   const costPerBird = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
   const canLog = currentFlock && currentFeed && effectiveWeight > 0 && (headcountChange >= 0 || casualtyNotes.trim());
-  const currentAnimalClass = getClassConfig(currentFlock?.class_type || 'poultry');
+  const currentAnimalClass = getClassConfig(currentFlock?.class_type || 'other');
   const showEggs = currentFlock && currentAnimalClass.producesEggs && !productionSkipped;
   const showLitter = currentFlock && currentAnimalClass.litterTracking && !productionSkipped;
   const showMilk = currentFlock && currentAnimalClass.producesMilk;
-  const showProduction = showEggs || showLitter || showMilk;
+  const showWorking = currentFlock && (currentFlock.working_animal || currentAnimalClass.workingAnimal);
+  const showProduction = showEggs || showLitter || showMilk || showWorking;
   const isBackdated = sessionDate !== todayString();
   const completedPercent = queue.length ? Math.round((completed.length / queue.length) * 100) : 0;
 
@@ -581,6 +582,7 @@ function ScaleHouse() {
           showEggs={showEggs}
           showLitter={showLitter}
           showMilk={showMilk}
+          showWorking={showWorking}
           showProduction={showProduction}
           stepLabel={isDailyMode ? `Step ${currentIndex + 1} of ${queue.length}` : "Quick Entry"}
           waterConsumed={waterConsumed}
@@ -1412,6 +1414,7 @@ function ScaleEntryCard(props) {
     showEggs,
     showLitter,
     showMilk,
+    showWorking,
     showProduction,
     stepLabel,
     waterConsumed,
@@ -1491,7 +1494,7 @@ function ScaleEntryCard(props) {
       {/* Flock header */}
       <header className="grid gap-[14px] items-start grid-cols-[58px_minmax(0,1fr)_auto] max-[980px]:grid-cols-[48px_minmax(0,1fr)]">
         <div className="flex items-center justify-center bg-[var(--bg-base)] border border-[var(--border)] rounded-lg h-[58px] text-[30px]">
-          {getAnimalEmoji(currentFlock.class_type, currentFlock.breed_name)}
+          {getAnimalEmoji(currentFlock)}
         </div>
         <div>
           <h1 className="display-font text-[32px] leading-none m-0">{currentFlock.name}</h1>
@@ -1778,6 +1781,23 @@ function ScaleEntryCard(props) {
       {showMilk ? (
         <ScaleSection title="Milk Production">
           <p className="text-[var(--text-muted)] text-xs m-0">🥛 Milk tracking coming soon</p>
+        </ScaleSection>
+      ) : null}
+
+      {showWorking ? (
+        <ScaleSection title="Working Animal">
+          <p className="text-[var(--text-muted)] text-xs m-0">🛡️ Guardian — no production metrics tracked</p>
+          <label className="field">
+            <span>Water consumed (gal)</span>
+            <input
+              min="0"
+              step="0.1"
+              type="number"
+              placeholder="0.0"
+              value={waterConsumed}
+              onChange={(event) => setWaterConsumed(event.target.value)}
+            />
+          </label>
         </ScaleSection>
       ) : null}
 
