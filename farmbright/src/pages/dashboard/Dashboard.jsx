@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useState } from "re
 import { AlertTriangle, Check, Circle, CircleArrowDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
+import { getAnimalEmoji } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
 import { dismissInventoryAlert, getDashboardOverview } from "../../services/dashboardApi";
 
@@ -70,7 +70,7 @@ function Dashboard() {
   const totalFlocks = today.flocks_total || 0;
   const hasStarted  = fedCount > 0;
   const allFed      = totalFlocks > 0 && fedCount === totalFlocks;
-  const hasEggProduction = flocks.some((f) => getClassConfig(f.class_type).producesEggs);
+  const hasEggProduction = flocks.some((f) => f.produces_eggs);
   const feedProgress  = totalFlocks ? Math.round((fedCount / totalFlocks) * 100) : 0;
   const feedingPanelState = allFed ? "complete" : hasStarted ? "compact" : "prominent";
   const flocksFedTone = allFed ? "var(--accent-primary)" : hasStarted ? "var(--accent-warn)" : "var(--border)";

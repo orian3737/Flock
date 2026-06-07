@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { buildCustomSpeciesPayload, CLASS_CONFIG, SPECIES_MAP } from '../utils/animalClass';
-import { createAnimalClass } from '../services/onboardingApi';
+import { CLASS_CONFIG, SPECIES_MAP } from '../utils/animalClass';
+import { createAnimalClass, createAnimalType } from '../services/onboardingApi';
 
 function classTypeEmoji(classType) {
-  return Object.values(SPECIES_MAP).find((s) => s.class_type === classType)?.emoji || '🐾';
+  return Object.values(SPECIES_MAP).find(s => s.class_type === classType)?.emoji || '🐾';
 }
 
 const BLANK = {
@@ -27,7 +27,7 @@ function CustomSpeciesForm({ userId, onAdd }) {
   const [error, setError] = useState('');
 
   function setField(key, value) {
-    setForm((prev) => {
+    setForm(prev => {
       const next = { ...prev, [key]: value };
       if (key === 'working_animal' && value) next.produces_meat = false;
       return next;
@@ -39,9 +39,21 @@ function CustomSpeciesForm({ userId, onAdd }) {
     setSaving(true);
     setError('');
     try {
-      const payload = buildCustomSpeciesPayload(userId, form);
-      const newClass = await createAnimalClass(payload);
-      onAdd(newClass);
+      const savedClass = await createAnimalClass(userId, {
+        name: form.name.trim(),
+        class_type: form.class_type,
+      });
+      const savedType = await createAnimalType(savedClass.id, {
+        name: form.name.trim(),
+        species: 'custom',
+        emoji: form.emoji || '🐾',
+        produces_eggs: form.produces_eggs,
+        produces_milk: form.produces_milk,
+        produces_meat: form.produces_meat,
+        produces_young: form.produces_young,
+        working_animal: form.working_animal,
+      });
+      onAdd({ ...savedClass, animalType: savedType });
       setForm({ ...BLANK });
     } catch (err) {
       setError(err.message || 'Could not add animal type.');
@@ -58,8 +70,8 @@ function CustomSpeciesForm({ userId, onAdd }) {
           <input
             placeholder="e.g. Alpaca, Peacock, Donkey"
             value={form.name}
-            onChange={(e) => setField('name', e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+            onChange={e => setField('name', e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
           />
         </label>
         <label className="field" style={{ width: '76px' }}>
@@ -69,15 +81,15 @@ function CustomSpeciesForm({ userId, onAdd }) {
             maxLength={2}
             placeholder="🐾"
             value={form.emoji}
-            onChange={(e) => setField('emoji', e.target.value || '🐾')}
+            onChange={e => setField('emoji', e.target.value || '🐾')}
           />
         </label>
       </div>
 
       <div>
-        <span className="text-[var(--text-muted)] text-xs block mb-2">Animal type</span>
+        <span className="text-[var(--text-muted)] text-xs block mb-2">Animal category</span>
         <div className="flex flex-wrap gap-2">
-          {Object.keys(CLASS_CONFIG).map((type) => (
+          {Object.keys(CLASS_CONFIG).map(type => (
             <button
               key={type}
               type="button"

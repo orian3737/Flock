@@ -7,7 +7,7 @@ import InlineFeedback from "../../components/InlineFeedback";
 import { FarmContext } from "../../context/FarmContext";
 import { getFlocks } from "../../services/flocksApi";
 import { createFeedAssignment, createFlock, getOnboardingSummary } from "../../services/onboardingApi";
-import { getAnimalEmoji, getClassConfig, getFlockConfig } from "../../utils/animalClass";
+import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
 
 const designations = ["layer", "breeder", "meat", "mixed"];
 
@@ -132,7 +132,6 @@ function FlockList() {
 
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
               {(() => {
-                const cfg = getFlockConfig(flock);
                 const statClass = "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg number-font grid gap-1 p-2.5";
                 const StatCell = ({ label, value }) => (
                   <span className={statClass}>
@@ -143,13 +142,13 @@ function FlockList() {
                 return (
                   <>
                     <StatCell label="All-time cost" value={formatMoney(flock.total_feed_cost_alltime)} />
-                    {cfg.producesEggs && (
+                    {flock.produces_eggs && (
                       <StatCell label="All-time eggs" value={formatNumber(flock.total_eggs_alltime)} />
                     )}
-                    {cfg.litterTracking && !cfg.producesEggs && (
+                    {flock.produces_young && !flock.produces_eggs && (
                       <StatCell label="All-time young" value={flock.total_young_alltime ?? '—'} />
                     )}
-                    {cfg.workingAnimal && (
+                    {flock.working_animal && (
                       <StatCell label="Feed cost" value={formatMoney(flock.total_feed_cost_alltime)} />
                     )}
                     <StatCell label="Last fed" value={formatLastFed(flock.last_fed)} />

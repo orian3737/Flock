@@ -21,7 +21,7 @@ export async function getQueue() {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount,
-         breeds ( name, animal_classes ( name, class_type, species, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal ) ),
+         breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
            feed_types ( id, name, unit, cost_per_unit, current_on_hand, par_level, bag_weight, bag_price )
          )`
@@ -47,14 +47,14 @@ export async function getQueue() {
     flock_id: flock.id,
     name: flock.name,
     breed_name: flock.breeds?.name || "",
-    animal_class_name: flock.breeds?.animal_classes?.name || "",
-    class_type: flock.breeds?.animal_classes?.class_type || 'poultry',
-    emoji: flock.breeds?.animal_classes?.emoji || '',
-    produces_eggs: flock.breeds?.animal_classes?.produces_eggs ?? false,
-    produces_milk: flock.breeds?.animal_classes?.produces_milk ?? false,
-    produces_meat: flock.breeds?.animal_classes?.produces_meat ?? true,
-    produces_young: flock.breeds?.animal_classes?.produces_young ?? true,
-    working_animal: flock.breeds?.animal_classes?.working_animal ?? false,
+    animal_class_name: flock.breeds?.animal_types?.animal_classes?.name || "",
+    class_type: flock.breeds?.animal_types?.animal_classes?.class_type || 'other',
+    emoji: flock.breeds?.animal_types?.emoji || '🐾',
+    produces_eggs: flock.breeds?.animal_types?.produces_eggs ?? false,
+    produces_milk: flock.breeds?.animal_types?.produces_milk ?? false,
+    produces_meat: flock.breeds?.animal_types?.produces_meat ?? true,
+    produces_young: flock.breeds?.animal_types?.produces_young ?? true,
+    working_animal: flock.breeds?.animal_types?.working_animal ?? false,
     designation: flock.designation,
     pen_name: flock.pen_name,
     current_headcount: flock.current_headcount,
@@ -82,7 +82,7 @@ export async function getQueueSummary() {
   const today = new Date().toISOString().slice(0, 10);
 
   const [flocksResult, feedingResult, productionResult, casualtyResult] = await Promise.all([
-    supabase.from("flocks").select("id, current_headcount, breeds(animal_classes(user_id))"),
+    supabase.from("flocks").select("id, current_headcount"),
     supabase.from("feeding_events").select("flock_id, total_weight, cost_per_lb_at_time").eq("date", today),
     supabase.from("production_logs").select("flock_id, egg_count").eq("date", today),
     supabase

@@ -22,26 +22,19 @@ async function remove(table, id, fallback) {
   return { success: true };
 }
 
-// ── Animal Classes ──────────────────────────────────────────
+async function selectOrThrow(query, fallback) {
+  const { data, error } = await query;
+  if (error) throw fmt(error, fallback);
+  return data || [];
+}
 
-export async function createAnimalClass({
-  user_id,
-  name,
-  class_type     = 'other',
-  species        = null,
-  emoji          = '🐾',
-  produces_eggs  = false,
-  produces_milk  = false,
-  produces_meat  = true,
-  produces_young = true,
-  working_animal = false,
-}) {
+// ── Animal Classes ────────────────────────────────────────
+// In the new schema animal_classes just hold name + class_type.
+// Production flags live on animal_types.
+
+export async function createAnimalClass(userId, { name, class_type = 'other' }) {
   const { data, error } = await supabase.from('animal_classes')
-    .insert({
-      user_id, name: name.trim(), class_type, species, emoji,
-      produces_eggs, produces_milk, produces_meat, produces_young,
-      working_animal, produces_fiber: false, produces_honey: false,
-    })
+    .insert({ user_id: userId, name: name.trim(), class_type })
     .select()
     .single();
   if (error) throw fmt(error, 'Could not create animal class.');
@@ -54,52 +47,79 @@ export function updateAnimalClass(id, { name, class_type }) {
   return update("animal_classes", id, patch, "Could not update animal class.");
 }
 
-export function deleteAnimalClass(id) {
+export async function deleteAnimalClass(id) {
+  const { count } = await supabase
+    .from('animal_types')
+    .select('id', { count: 'exact', head: true })
+    .eq('animal_class_id', id);
+  if (count > 0) {
+    throw new Error(`This class has ${count} animal type${count > 1 ? 's' : ''}. Remove types first.`);
+  }
   return remove("animal_classes", id, "Could not delete animal class.");
 }
 
-// Convenience wrapper for custom (user-created) species — accepts the
-// buildCustomSpeciesPayload shape directly.
-export async function createCustomAnimalClass(userId, payload) {
-  const { data, error } = await supabase.from('animal_classes')
-    .insert({ ...payload, user_id: userId })
-    .select()
-    .single();
-  if (error) throw fmt(error, 'Could not create custom animal class.');
-  return data;
-}
+// ── Animal Types ──────────────────────────────────────────
 
-// Patch only the production flag columns on an existing animal class.
-export async function updateAnimalClassFlags(animalClassId, {
-  produces_eggs,
-  produces_milk,
-  produces_meat,
-  produces_young,
-  working_animal,
-  produces_fiber,
-  produces_honey,
+export async function createAnimalType(animalClassId, {
+  name,
+  species        = 'custom',
+  emoji          = '🐾',
+  produces_eggs  = false,
+  produces_milk  = false,
+  produces_meat  = true,
+  produces_young = true,
+  working_animal = false,
 }) {
-  const patch = {};
-  if (produces_eggs   != null) patch.produces_eggs   = produces_eggs;
-  if (produces_milk   != null) patch.produces_milk   = produces_milk;
-  if (produces_meat   != null) patch.produces_meat   = produces_meat;
-  if (produces_young  != null) patch.produces_young  = produces_young;
-  if (working_animal  != null) patch.working_animal  = working_animal;
-  if (produces_fiber  != null) patch.produces_fiber  = produces_fiber;
-  if (produces_honey  != null) patch.produces_honey  = produces_honey;
-  const { data, error } = await supabase.from('animal_classes')
-    .update(patch)
-    .eq('id', animalClassId)
+  const { data, error } = await supabase.from('animal_types')
+    .insert({
+      animal_class_id: animalClassId,
+      name: name.trim(),
+      species,
+      emoji,
+      produces_eggs,
+      produces_milk,
+      produces_meat,
+      produces_young,
+      working_animal,
+      produces_fiber: false,
+      produces_honey: false,
+    })
     .select()
     .single();
-  if (error) throw fmt(error, 'Could not update animal class flags.');
+  if (error) throw fmt(error, 'Could not create animal type.');
   return data;
 }
 
-// ── Breeds ──────────────────────────────────────────────────
+export async function updateAnimalType(animalTypeId, fields) {
+  const patch = {};
+  if ('name'           in fields) patch.name           = fields.name.trim();
+  if ('emoji'          in fields) patch.emoji          = fields.emoji;
+  if ('produces_eggs'  in fields) patch.produces_eggs  = fields.produces_eggs;
+  if ('produces_milk'  in fields) patch.produces_milk  = fields.produces_milk;
+  if ('produces_meat'  in fields) patch.produces_meat  = fields.produces_meat;
+  if ('produces_young' in fields) patch.produces_young = fields.produces_young;
+  if ('working_animal' in fields) patch.working_animal = fields.working_animal;
+  return update('animal_types', animalTypeId, patch, 'Could not update animal type.');
+}
 
-export function createBreed(animalClassId, name) {
-  return insert("breeds", { animal_class_id: animalClassId, name: name.trim() }, "Could not create breed.");
+export async function deleteAnimalType(animalTypeId) {
+  const { count } = await supabase
+    .from('breeds')
+    .select('id', { count: 'exact', head: true })
+    .eq('animal_type_id', animalTypeId);
+  if (count > 0) {
+    throw new Error(`This type has ${count} breed${count > 1 ? 's' : ''}. Remove breeds first.`);
+  }
+  const { error } = await supabase.from('animal_types').delete().eq('id', animalTypeId);
+  if (error) throw fmt(error, 'Could not delete animal type.');
+  return { success: true };
+}
+
+// ── Breeds ────────────────────────────────────────────────
+// breeds.animal_type_id (was animal_class_id)
+
+export function createBreed(animalTypeId, name) {
+  return insert("breeds", { animal_type_id: animalTypeId, name: name.trim() }, "Could not create breed.");
 }
 
 export function updateBreed(breedId, name) {
@@ -124,15 +144,21 @@ export async function deleteBreed(breedId) {
 
 export async function getAllBreedsGrouped(userId) {
   const { data, error } = await supabase
-    .from("animal_classes")
-    .select("id, name, class_type, species, emoji, breeds ( id, name )")
-    .eq("user_id", userId)
-    .order("name");
-  if (error) throw fmt(error, "Could not load breeds.");
+    .from('animal_classes')
+    .select(`
+      id, name, class_type,
+      animal_types (
+        id, name, emoji,
+        breeds ( id, name )
+      )
+    `)
+    .eq('user_id', userId)
+    .order('name');
+  if (error) throw fmt(error, 'Could not load breeds.');
   return data || [];
 }
 
-// ── Flocks ──────────────────────────────────────────────────
+// ── Flocks ────────────────────────────────────────────────
 
 export function createFlock({ breed_id, name, designation, pen_name, current_headcount }) {
   return insert(
@@ -161,7 +187,7 @@ export function deleteFlock(id) {
   return remove("flocks", id, "Could not delete flock.");
 }
 
-// ── Feed Types ───────────────────────────────────────────────
+// ── Feed Types ────────────────────────────────────────────
 
 export function createFeedType({ user_id, name, unit, bag_weight, bag_price, par_level, current_on_hand }) {
   const bw = Number(bag_weight);
@@ -197,7 +223,7 @@ export function deleteFeedType(id) {
   return remove("feed_types", id, "Could not delete feed type.");
 }
 
-// ── Feed Assignments ─────────────────────────────────────────
+// ── Feed Assignments ──────────────────────────────────────
 
 export async function createFeedAssignment({ flock_id, feed_type_id }) {
   return insert("feed_assignments", { flock_id, feed_type_id }, "Could not create feed assignment.");
@@ -207,7 +233,83 @@ export function deleteFeedAssignment(id) {
   return remove("feed_assignments", id, "Could not delete feed assignment.");
 }
 
-// ── Onboarding Summary ───────────────────────────────────────
+// ── Full Hierarchy ─────────────────────────────────────────
+// Returns: [{ id, name, class_type, animal_types: [{ id, name, emoji, ...flags, breeds: [{ id, name, flocks: [...] }] }] }]
+
+export async function getFullHierarchy(userId) {
+  if (!userId) return [];
+
+  const { data: classes, error: ce } = await supabase
+    .from('animal_classes')
+    .select('id, name, class_type')
+    .eq('user_id', userId)
+    .order('name');
+  if (ce) throw fmt(ce, 'Could not load animal classes.');
+  if (!classes?.length) return [];
+
+  const classIds = classes.map(c => c.id);
+
+  const { data: types, error: te } = await supabase
+    .from('animal_types')
+    .select('id, animal_class_id, name, species, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal')
+    .in('animal_class_id', classIds)
+    .order('name');
+  if (te) throw fmt(te, 'Could not load animal types.');
+
+  const typeIds = (types || []).map(t => t.id);
+
+  const { data: breeds, error: be } = typeIds.length
+    ? await supabase.from('breeds').select('id, animal_type_id, name').in('animal_type_id', typeIds).order('name')
+    : { data: [], error: null };
+  if (be) throw fmt(be, 'Could not load breeds.');
+
+  const breedIds = (breeds || []).map(b => b.id);
+
+  const { data: flocks, error: fe } = breedIds.length
+    ? await supabase.from('flocks').select('id, breed_id, name, designation, pen_name, current_headcount, created_at').in('breed_id', breedIds).order('name')
+    : { data: [], error: null };
+  if (fe) throw fmt(fe, 'Could not load flocks.');
+
+  const flockIds = (flocks || []).map(f => f.id);
+  const { data: assignments } = flockIds.length
+    ? await supabase.from('feed_assignments').select('id, flock_id, feed_type_id').in('flock_id', flockIds)
+    : { data: [] };
+
+  const assignByFlock = new Map();
+  for (const a of assignments || []) {
+    const list = assignByFlock.get(a.flock_id) || [];
+    list.push({ id: a.id, feed_type_id: a.feed_type_id });
+    assignByFlock.set(a.flock_id, list);
+  }
+
+  const flocksByBreed = new Map();
+  for (const f of flocks || []) {
+    const list = flocksByBreed.get(f.breed_id) || [];
+    list.push({ ...f, feed_assignments: assignByFlock.get(f.id) || [] });
+    flocksByBreed.set(f.breed_id, list);
+  }
+
+  const breedsByType = new Map();
+  for (const b of breeds || []) {
+    const list = breedsByType.get(b.animal_type_id) || [];
+    list.push({ ...b, flocks: flocksByBreed.get(b.id) || [] });
+    breedsByType.set(b.animal_type_id, list);
+  }
+
+  const typesByClass = new Map();
+  for (const t of types || []) {
+    const list = typesByClass.get(t.animal_class_id) || [];
+    list.push({ ...t, breeds: breedsByType.get(t.id) || [] });
+    typesByClass.set(t.animal_class_id, list);
+  }
+
+  return classes.map(c => ({
+    ...c,
+    animal_types: typesByClass.get(c.id) || [],
+  }));
+}
+
+// ── Onboarding Summary ─────────────────────────────────────
 
 function feedTypeJson(ft) {
   const bw = Number(ft.bag_weight || 0);
@@ -227,36 +329,11 @@ function feedTypeJson(ft) {
   };
 }
 
-function flockJson(flock, assignmentsByFlockId) {
-  return {
-    id: flock.id,
-    breed_id: flock.breed_id,
-    name: flock.name,
-    designation: flock.designation,
-    pen_name: flock.pen_name,
-    current_headcount: flock.current_headcount,
-    created_at: flock.created_at || null,
-    feed_assignments: assignmentsByFlockId.get(flock.id) || [],
-  };
-}
-
-async function selectOrThrow(query, fallback) {
-  const { data, error } = await query;
-  if (error) throw fmt(error, fallback);
-  return data || [];
-}
-
 export async function getOnboardingSummary(userId) {
   if (!userId) return { animal_classes: [], feed_types: [] };
 
-  const [animalClasses, feedTypes] = await Promise.all([
-    selectOrThrow(
-      supabase.from("animal_classes")
-        .select("id,user_id,name,class_type,species,emoji,produces_eggs,produces_milk,produces_meat,produces_young,working_animal,produces_fiber,produces_honey")
-        .eq("user_id", userId)
-        .order("name"),
-      "Could not load animal classes."
-    ),
+  const [hierarchy, feedTypes] = await Promise.all([
+    getFullHierarchy(userId),
     selectOrThrow(
       supabase
         .from("feed_types")
@@ -267,77 +344,8 @@ export async function getOnboardingSummary(userId) {
     ),
   ]);
 
-  const classIds = animalClasses.map((c) => c.id);
-  const breeds = classIds.length
-    ? await selectOrThrow(
-        supabase.from("breeds").select("id,animal_class_id,name").in("animal_class_id", classIds).order("name"),
-        "Could not load breeds."
-      )
-    : [];
-
-  const breedIds = breeds.map((b) => b.id);
-  const flocks = breedIds.length
-    ? await selectOrThrow(
-        supabase
-          .from("flocks")
-          .select("id,breed_id,name,designation,pen_name,current_headcount,created_at")
-          .in("breed_id", breedIds)
-          .order("name"),
-        "Could not load flocks."
-      )
-    : [];
-
-  const flockIds = flocks.map((f) => f.id);
-  const assignments = flockIds.length
-    ? await selectOrThrow(
-        supabase.from("feed_assignments").select("id,flock_id,feed_type_id").in("flock_id", flockIds),
-        "Could not load feed assignments."
-      )
-    : [];
-
-  const assignmentsByFlockId = new Map();
-  for (const a of assignments) {
-    const list = assignmentsByFlockId.get(a.flock_id) || [];
-    list.push({ id: a.id, flock_id: a.flock_id, feed_type_id: a.feed_type_id });
-    assignmentsByFlockId.set(a.flock_id, list);
-  }
-
-  const flocksByBreedId = new Map();
-  for (const f of flocks) {
-    const list = flocksByBreedId.get(f.breed_id) || [];
-    list.push(flockJson(f, assignmentsByFlockId));
-    flocksByBreedId.set(f.breed_id, list);
-  }
-
-  const breedsByClassId = new Map();
-  for (const b of breeds) {
-    const list = breedsByClassId.get(b.animal_class_id) || [];
-    list.push({
-      id: b.id,
-      animal_class_id: b.animal_class_id,
-      name: b.name,
-      flocks: (flocksByBreedId.get(b.id) || []).sort((a, z) => a.name.localeCompare(z.name)),
-    });
-    breedsByClassId.set(b.animal_class_id, list);
-  }
-
   return {
-    animal_classes: animalClasses.map((ac) => ({
-      id: ac.id,
-      user_id: ac.user_id,
-      name: ac.name,
-      class_type: ac.class_type || 'other',
-      species: ac.species || null,
-      emoji: ac.emoji || '🐾',
-      produces_eggs: ac.produces_eggs ?? false,
-      produces_milk: ac.produces_milk ?? false,
-      produces_meat: ac.produces_meat ?? true,
-      produces_young: ac.produces_young ?? true,
-      working_animal: ac.working_animal ?? false,
-      produces_fiber: ac.produces_fiber ?? false,
-      produces_honey: ac.produces_honey ?? false,
-      breeds: (breedsByClassId.get(ac.id) || []).sort((a, z) => a.name.localeCompare(z.name)),
-    })),
+    animal_classes: hierarchy,
     feed_types: feedTypes.map(feedTypeJson),
   };
 }
