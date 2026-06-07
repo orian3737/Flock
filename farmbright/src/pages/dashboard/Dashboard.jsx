@@ -184,6 +184,25 @@ function Dashboard() {
           >
             {hasStarted ? "Continue Day →" : "Start Day →"}
           </button>
+
+          {hasStarted ? (
+            <div className="flex gap-2">
+              <button
+                className="btn btn-xs btn-ghost font-mono border border-[var(--border)] text-[var(--text-secondary)] flex-1"
+                type="button"
+                onClick={() => navigate("/scale-house?panel=review")}
+              >
+                Review Day
+              </button>
+              <button
+                className="btn btn-xs btn-ghost font-mono border border-[var(--border)] text-[var(--text-secondary)] flex-1"
+                type="button"
+                onClick={() => navigate("/scale-house?panel=edit")}
+              >
+                Edit Day
+              </button>
+            </div>
+          ) : null}
         </aside>
 
         <div className="grid grid-cols-2 gap-4 content-start min-w-0">
