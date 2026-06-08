@@ -286,16 +286,20 @@ export async function logProduction(flockId, payload) {
   const { data, error } = await supabase
     .from("production_logs")
     .insert({
-      flock_id: flockId,
-      date: payload.date || new Date().toISOString().slice(0, 10),
-      egg_count: payload.egg_count != null ? Number(payload.egg_count) : null,
-      water_consumed: payload.water_consumed != null ? Number(payload.water_consumed) : null,
-      notes: payload.notes || null,
+      flock_id:       flockId,
+      date:           payload.date || new Date().toISOString().slice(0, 10),
+      egg_count:      payload.egg_count      ?? null,
+      water_consumed: payload.water_consumed  ?? null,
+      litter_count:   payload.litter_count   ?? null,
+      litter_size:    payload.litter_size    ?? null,
+      litter_notes:   payload.litter_notes   ?? null,
+      milk_gallons:   payload.milk_gallons   ?? null,
+      notes:          payload.notes          ?? null,
     })
     .select()
     .single();
   if (error) throw fmt(error, "Could not log production.");
-  return productionJson(data);
+  return data;
 }
 
 export async function logCasualty(flockId, payload) {

@@ -14,6 +14,7 @@ import {
   deleteFlock,
   getOnboardingSummary,
   updateAnimalClass,
+  updateAnimalType,
   updateBreed,
   updateFeedType,
   updateFlock,
@@ -116,6 +117,18 @@ function FarmSetup() {
       if (await loadSummary()) setFeedback({ type: "success", message: "Deleted." });
     } catch (err) {
       setFeedback({ type: "error", message: formatError(err) });
+    }
+  }
+
+  async function handleFlagToggle(animalTypeId, flagKey, newValue) {
+    setFeedback(null);
+    try {
+      const patch = { [flagKey]: newValue };
+      if (flagKey === 'working_animal' && newValue) patch.produces_meat = false;
+      await updateAnimalType(animalTypeId, patch);
+      if (await loadSummary()) setFeedback({ type: 'success', message: 'Updated.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: formatError(err) });
     }
   }
 
@@ -232,6 +245,31 @@ function FarmSetup() {
                         >
                           <Trash2 size={14} />
                         </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 px-1 pb-2 mb-2">
+                        {[
+                          { key: 'produces_eggs',  label: '🥚 Eggs' },
+                          { key: 'produces_milk',  label: '🥛 Milk' },
+                          { key: 'produces_meat',  label: '🥩 Meat' },
+                          { key: 'produces_young', label: '🐣 Young' },
+                          { key: 'working_animal', label: '🏋️ Working' },
+                        ].map(({ key, label }) => {
+                          const active = Boolean(animalType[key]);
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => handleFlagToggle(animalType.id, key, !active)}
+                              className={`font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                                active
+                                  ? 'bg-[var(--accent-green)] border-[var(--accent-green)] text-[var(--bg-base)]'
+                                  : 'bg-transparent border-[var(--border)] text-[var(--text-muted)]'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       {(animalType.breeds || []).map(breed => (

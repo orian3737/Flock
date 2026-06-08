@@ -17,7 +17,7 @@ export async function getTodaySession(date = null) {
       .order('timestamp', { ascending: true }),
     supabase
       .from('production_logs')
-      .select('id, flock_id, date, egg_count, water_consumed, notes, flocks ( name )')
+      .select('id, flock_id, date, egg_count, water_consumed, litter_count, litter_size, litter_notes, notes, flocks ( name )')
       .eq('date', sessionDate),
     supabase
       .from('casualty_logs')

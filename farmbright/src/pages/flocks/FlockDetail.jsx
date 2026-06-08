@@ -18,6 +18,8 @@ function FlockDetail() {
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [showLitterModal, setShowLitterModal] = useState(false);
+  const [litterForm, setLitterForm] = useState({ date: todayString(), litter_count: 1, litter_size: 0, litter_notes: '' });
   const [youngSales, setYoungSales] = useState([]);
   const [litterLogs, setLitterLogs] = useState([]);
 
@@ -124,7 +126,7 @@ function FlockDetail() {
             </button>
           )}
           {animalClass.litterTracking && (
-            <button className="secondary-button" type="button" onClick={() => setModal("litter")}>
+            <button className="secondary-button" type="button" onClick={() => setShowLitterModal(true)}>
               Log Litter
             </button>
           )}
@@ -333,13 +335,24 @@ function FlockDetail() {
       {modal === "production" ? (
         <ProductionModal onClose={() => setModal(null)} onSubmit={submitProduction} />
       ) : null}
-      {modal === "litter" ? (
-        <HeadcountModal
-          additionOnly
-          title="Log Litter Birth"
-          additionLabel={`${animalClass.youngTerm} born`}
-          onClose={() => setModal(null)}
-          onSubmit={submitCasualty}
+      {showLitterModal ? (
+        <LitterModal
+          form={litterForm}
+          onChange={setLitterForm}
+          youngTerm={animalClass.youngTerm}
+          onClose={() => setShowLitterModal(false)}
+          onSubmit={async () => {
+            await logProduction(id, {
+              date: litterForm.date,
+              litter_count: Number(litterForm.litter_count) || null,
+              litter_size: Number(litterForm.litter_size) || null,
+              litter_notes: litterForm.litter_notes || null,
+            });
+            setShowLitterModal(false);
+            setLitterForm({ date: todayString(), litter_count: 1, litter_size: 0, litter_notes: '' });
+            await refresh();
+            setFeedback({ type: 'success', message: `${animalClass.youngTerm} logged.` });
+          }}
         />
       ) : null}
       {modal === "young_sale" ? (
@@ -519,6 +532,51 @@ function YoungSaleModal({ youngTerm, onClose, onSubmit }) {
         <div className="modal-actions mt-2">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-button" type="submit">Record Sale</button>
+        </div>
+      </form>
+    </ModalFrame>
+  );
+}
+
+function LitterModal({ form, onChange, youngTerm, onClose, onSubmit }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setErr(null);
+    try {
+      await onSubmit();
+    } catch (e) {
+      setErr(e.message || 'Could not log litter.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalFrame title="Log Litter" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div className="settings-form-grid">
+          {err && <p className="text-[var(--accent-danger)] text-xs m-0">{err}</p>}
+          <label className="field">
+            <span>Date</span>
+            <input type="date" value={form.date} onChange={(e) => onChange(f => ({ ...f, date: e.target.value }))} />
+          </label>
+          <label className="field">
+            <span>Litters</span>
+            <input type="number" min="0" value={form.litter_count} onChange={(e) => onChange(f => ({ ...f, litter_count: e.target.value }))} />
+          </label>
+          <label className="field">
+            <span>{youngTerm} Born</span>
+            <input type="number" min="0" value={form.litter_size} onChange={(e) => onChange(f => ({ ...f, litter_size: e.target.value }))} />
+          </label>
+          <label className="field">
+            <span>Notes</span>
+            <input type="text" value={form.litter_notes} maxLength={500} onChange={(e) => onChange(f => ({ ...f, litter_notes: e.target.value }))} />
+          </label>
+          <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Litter'}</button>
         </div>
       </form>
     </ModalFrame>

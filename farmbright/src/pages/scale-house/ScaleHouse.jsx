@@ -144,11 +144,18 @@ function ScaleHouse() {
   const costTotal = currentFeed ? effectiveWeight * (currentFeed.cost_per_lb ?? currentFeed.cost_per_unit ?? 0) : 0;
   const costPerBird = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
   const canLog = currentFlock && currentFeed && effectiveWeight > 0 && (headcountChange >= 0 || casualtyNotes.trim());
-  const currentAnimalClass = getClassConfig(currentFlock?.class_type || 'other');
+  const _classDefaults = getClassConfig(currentFlock?.class_type || 'other');
+  const currentAnimalClass = currentFlock ? {
+    ..._classDefaults,
+    producesEggs:  currentFlock.produces_eggs  ?? _classDefaults.producesEggs,
+    producesMilk:  currentFlock.produces_milk  ?? _classDefaults.producesMilk,
+    producesYoung: currentFlock.produces_young ?? _classDefaults.producesYoung,
+    workingAnimal: currentFlock.working_animal ?? _classDefaults.workingAnimal,
+  } : _classDefaults;
   const showEggs = currentFlock && currentAnimalClass.producesEggs && !productionSkipped;
   const showLitter = currentFlock && currentAnimalClass.litterTracking && !productionSkipped;
   const showMilk = currentFlock && currentAnimalClass.producesMilk;
-  const showWorking = currentFlock && (currentFlock.working_animal || currentAnimalClass.workingAnimal);
+  const showWorking = currentFlock && currentAnimalClass.workingAnimal;
   const showProduction = showEggs || showLitter || showMilk || showWorking;
   const isBackdated = sessionDate !== todayString();
   const completedPercent = queue.length ? Math.round((completed.length / queue.length) * 100) : 0;
@@ -1028,16 +1035,21 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
                 );
               })}
 
-              {sessionData.production.map((log) => (
-                <ProductionEditForm
-                  key={log.id}
-                  log={log}
-                  onSave={async (updates) => {
-                    await updateProductionLog(log.id, updates);
-                    loadSessionData(date);
-                  }}
-                />
-              ))}
+              {sessionData.production.map((log) => {
+                const queueFlock = queue.find((f) => f.flock_id === log.flock_id);
+                const classType = queueFlock?.class_type || 'other';
+                return (
+                  <ProductionEditForm
+                    key={log.id}
+                    log={log}
+                    classType={classType}
+                    onSave={async (updates) => {
+                      await updateProductionLog(log.id, updates);
+                      loadSessionData(date);
+                    }}
+                  />
+                );
+              })}
             </>
           )}
         </div>
@@ -1187,19 +1199,28 @@ function FeedingEditForm({ event, assignedFeeds, onSave, onDelete }) {
   );
 }
 
-function ProductionEditForm({ log, onSave }) {
+function ProductionEditForm({ log, classType, onSave }) {
   const [eggCount, setEggCount] = useState(String(log.egg_count ?? ""));
   const [water, setWater] = useState(String(log.water_consumed ?? ""));
+  const [litterCount, setLitterCount] = useState(String(log.litter_count ?? ""));
+  const [litterSize, setLitterSize] = useState(String(log.litter_size ?? ""));
+  const [litterNotes, setLitterNotes] = useState(log.litter_notes || "");
   const [notes, setNotes] = useState(log.notes || "");
   const [saving, setSaving] = useState(false);
+
+  const classConfig = getClassConfig(classType || 'other');
+  const showLitter = classConfig.litterTracking;
 
   async function handleSave() {
     setSaving(true);
     try {
       await onSave({
-        egg_count: eggCount === "" ? null : Number(eggCount),
+        egg_count:     eggCount === "" ? null : Number(eggCount),
         water_consumed: water === "" ? null : Number(water),
-        notes: notes || null,
+        litter_count:  showLitter && litterCount !== "" ? Number(litterCount) : null,
+        litter_size:   showLitter && litterSize !== "" ? Number(litterSize) : null,
+        litter_notes:  showLitter ? litterNotes || null : null,
+        notes:         notes || null,
       });
     } finally {
       setSaving(false);
@@ -1221,6 +1242,24 @@ function ProductionEditForm({ log, onSave }) {
           <input type="number" min="0" step="0.1" value={water} onChange={(e) => setWater(e.target.value)} />
         </label>
       </div>
+      {showLitter && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="field">
+              <span>Litters</span>
+              <input type="number" min="0" value={litterCount} onChange={(e) => setLitterCount(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>{classConfig.youngTerm} Born</span>
+              <input type="number" min="0" value={litterSize} onChange={(e) => setLitterSize(e.target.value)} />
+            </label>
+          </div>
+          <label className="field">
+            <span>Birth Notes</span>
+            <input type="text" value={litterNotes} maxLength={500} onChange={(e) => setLitterNotes(e.target.value)} />
+          </label>
+        </>
+      )}
       <label className="field">
         <span>Notes</span>
         <input type="text" value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} />
