@@ -29,7 +29,7 @@ export async function getYoungSales(startDate, endDate) {
       *,
       flocks (
         id, name,
-        breeds ( name, animal_classes ( name, class_type ) )
+        breeds ( name, animal_types ( name, animal_classes ( name, class_type ) ) )
       )
     `)
     .gte('date', startDate)
