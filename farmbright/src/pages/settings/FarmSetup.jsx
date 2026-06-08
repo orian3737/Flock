@@ -7,9 +7,11 @@ import CustomSpeciesForm from "../../components/CustomSpeciesForm";
 import InlineFeedback from "../../components/InlineFeedback";
 import {
   createBreed,
+  createFeedAssignment,
   deleteAnimalClass,
   deleteAnimalType,
   deleteBreed,
+  deleteFeedAssignment,
   deleteFeedType,
   deleteFlock,
   getOnboardingSummary,
@@ -117,6 +119,26 @@ function FarmSetup() {
       if (await loadSummary()) setFeedback({ type: "success", message: "Deleted." });
     } catch (err) {
       setFeedback({ type: "error", message: formatError(err) });
+    }
+  }
+
+  async function handleFeedAssign(flockId, feedTypeId) {
+    setFeedback(null);
+    try {
+      await createFeedAssignment({ flock_id: flockId, feed_type_id: feedTypeId });
+      if (await loadSummary()) setFeedback({ type: 'success', message: 'Feed assigned.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: formatError(err) });
+    }
+  }
+
+  async function handleFeedUnassign(assignmentId) {
+    setFeedback(null);
+    try {
+      await deleteFeedAssignment(assignmentId);
+      if (await loadSummary()) setFeedback({ type: 'success', message: 'Feed removed.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: formatError(err) });
     }
   }
 
@@ -324,13 +346,16 @@ function FarmSetup() {
                               <FlockEditor
                                 draft={draft}
                                 editing={isEditing("flock", flock.id)}
+                                feedTypes={summary.feed_types}
                                 flock={flock}
                                 key={flock.id}
+                                onAssign={(feedTypeId) => handleFeedAssign(flock.id, feedTypeId)}
                                 onCancel={cancelEdit}
                                 onChange={updateDraft}
                                 onDelete={() => deleteItem("flock", flock.id)}
                                 onEdit={() => beginEdit("flock", flock)}
                                 onSave={() => saveEdit("flock", flock.id)}
+                                onUnassign={handleFeedUnassign}
                               />
                             ))}
                           </div>
@@ -437,8 +462,9 @@ function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
   );
 }
 
-function FlockEditor({ draft, editing, flock, onCancel, onChange, onDelete, onEdit, onSave }) {
+function FlockEditor({ draft, editing, feedTypes, flock, onAssign, onCancel, onChange, onDelete, onEdit, onSave, onUnassign }) {
   const source = editing ? draft : flock;
+  const assignedIds = new Set((flock.feed_assignments || []).map(a => a.feed_type_id));
   return (
     <div className="settings-edit-card">
       <div className="settings-edit-grid">
@@ -461,6 +487,34 @@ function FlockEditor({ draft, editing, flock, onCancel, onChange, onDelete, onEd
           </select>
         </label>
       </div>
+
+      <div className="mt-2">
+        <span className="font-mono text-[11px] text-[var(--text-muted)] uppercase tracking-wide">Assigned Feeds</span>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {(feedTypes || []).length === 0 && (
+            <span className="font-mono text-xs text-[var(--text-muted)]">No feed types created yet</span>
+          )}
+          {(feedTypes || []).map(ft => {
+            const assigned = assignedIds.has(ft.id);
+            const assignment = (flock.feed_assignments || []).find(a => a.feed_type_id === ft.id);
+            return (
+              <button
+                key={ft.id}
+                type="button"
+                onClick={() => assigned ? onUnassign(assignment.id) : onAssign(ft.id)}
+                className={`font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                  assigned
+                    ? 'bg-[var(--accent-green)] border-[var(--accent-green)] text-[var(--bg-base)]'
+                    : 'bg-transparent border-[var(--border)] text-[var(--text-muted)]'
+                }`}
+              >
+                {ft.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <RowActions editing={editing} onCancel={onCancel} onDelete={onDelete} onEdit={onEdit} onSave={onSave} />
     </div>
   );

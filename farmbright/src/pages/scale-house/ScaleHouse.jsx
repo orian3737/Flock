@@ -144,6 +144,15 @@ function ScaleHouse() {
   const costTotal = currentFeed ? effectiveWeight * (currentFeed.cost_per_lb ?? currentFeed.cost_per_unit ?? 0) : 0;
   const costPerBird = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
   const canLog = currentFlock && currentFeed && effectiveWeight > 0 && (headcountChange >= 0 || casualtyNotes.trim());
+  const blockReason = !currentFlock
+    ? 'No flock selected'
+    : !currentFeed
+      ? (currentFlock.assigned_feeds?.length ? 'Select a feed type' : 'No feed assigned — add one in Farm Setup')
+      : effectiveWeight <= 0
+        ? 'Enter a weight greater than 0'
+        : headcountChange < 0 && !casualtyNotes.trim()
+          ? 'Add notes for the headcount change'
+          : '';
   const _classDefaults = getClassConfig(currentFlock?.class_type || 'other');
   const currentAnimalClass = currentFlock ? {
     ..._classDefaults,
@@ -333,7 +342,7 @@ function ScaleHouse() {
       resetForm();
       await Promise.all([refreshQueue(), refreshEvents()]);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Session could not be saved.");
+      setError(requestError.message || "Session could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -538,6 +547,7 @@ function ScaleHouse() {
         <ScaleEntryCard
           adjustedHeadcount={adjustedHeadcount}
           autoCapture={autoCapture}
+          blockReason={blockReason}
           casualtyNotes={casualtyNotes}
           canLog={canLog}
           costPerBird={costPerBird}
@@ -606,9 +616,14 @@ function ScaleHouse() {
           <button className="secondary-button" type="button" onClick={handleSkip}>
             Skip - feed later
           </button>
-          <button className="primary-button" type="button" disabled={!canLog || saving} onClick={handleSubmit}>
-            {saving ? "Saving..." : "Complete & Next →"}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            {!canLog && !saving && blockReason && (
+              <span className="font-mono text-[11px] text-[var(--accent-warn)]">{blockReason}</span>
+            )}
+            <button className="primary-button" type="button" disabled={!canLog || saving} onClick={handleSubmit}>
+              {saving ? "Saving..." : "Complete & Next →"}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -1405,6 +1420,7 @@ function ScaleEntryCard(props) {
     autoCapture,
     birthsToday,
     setBirthsToday,
+    blockReason,
     casualtyNotes,
     canLog,
     costPerBird,
@@ -1854,9 +1870,14 @@ function ScaleEntryCard(props) {
       </ScaleSection>
 
       {!isDailyMode ? (
-        <button className="primary-button w-full" disabled={!canLog || saving} type="button" onClick={onQuickSubmit}>
-          {saving ? "Logging..." : "Log Feeding"}
-        </button>
+        <div className="grid gap-1">
+          {!canLog && !saving && blockReason && (
+            <span className="font-mono text-[11px] text-[var(--accent-warn)] text-center">{blockReason}</span>
+          )}
+          <button className="primary-button w-full" disabled={!canLog || saving} type="button" onClick={onQuickSubmit}>
+            {saving ? "Logging..." : "Log Feeding"}
+          </button>
+        </div>
       ) : null}
     </section>
   );
