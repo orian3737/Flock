@@ -2,7 +2,8 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { CheckCircle, Download, FileText, Sheet } from "lucide-react";
 
 import { FarmContext } from "../../context/FarmContext";
-import { generateExport, getExportPreview } from "../../services/exportApi";
+import { getExportPreview } from "../../services/exportApi";
+import { generateCSV, generatePDF, generateXLSX } from "../../services/exportService";
 import { getQueue } from "../../services/scaleHouseApi";
 
 const todayString = () => new Date().toISOString().slice(0, 10);
@@ -15,9 +16,9 @@ const reportOptions = [
 ];
 
 const formatCards = [
-  { id: "csv", label: "CSV", icon: FileText, description: "Spreadsheet-ready" },
-  { id: "pdf", label: "PDF", icon: FileText, deferred: true, description: "Printable report" },
-  { id: "xlsx", label: "XLSX", icon: Sheet, deferred: true, description: "Multi-tab workbook" },
+  { id: "csv",  label: "CSV",  icon: FileText, description: "Spreadsheet-ready" },
+  { id: "pdf",  label: "PDF",  icon: FileText, description: "Printable report" },
+  { id: "xlsx", label: "XLSX", icon: Sheet,    description: "Multi-tab workbook" },
 ];
 
 function Export() {
@@ -64,34 +65,41 @@ function Export() {
     );
   }
 
-  async function handleGenerate(overridePayload = null) {
-    const payload = overridePayload || {
-      user_id: userId,
+  async function handleGenerate(overrideOptions = null) {
+    const options = overrideOptions || {
+      userId,
+      farmName,
       format,
-      report_type: effectiveReportType,
-      flock_ids: selectedFlockIds,
-      ...dateRange,
+      reportTypes: [effectiveReportType],
+      flockIds: selectedFlockIds,
+      startDate: dateRange.start_date,
+      endDate: dateRange.end_date,
     };
+
     setLoading(true);
     setError("");
     try {
-      const response = await generateExport(payload);
-      const blob = new Blob([response.data], { type: response.headers["content-type"] });
-      const url = URL.createObjectURL(blob);
-      const filename = `Flock_${payload.report_type}_${todayString()}.${payload.format}`;
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
+      if (options.format === "csv") {
+        await generateCSV(options);
+      } else if (options.format === "pdf") {
+        await generatePDF(options);
+      } else if (options.format === "xlsx") {
+        await generateXLSX(options);
+      }
 
       const nextRecent = [
-        { date: new Date().toLocaleString(), format: payload.format, reportType: payload.report_type, payload },
+        {
+          date: new Date().toLocaleString(),
+          format: options.format,
+          reportType: options.reportTypes?.[0] || effectiveReportType,
+          payload: options,
+        },
         ...recent,
       ].slice(0, 5);
       setRecent(nextRecent);
       localStorage.setItem("Flock_recent_exports", JSON.stringify(nextRecent));
     } catch (requestError) {
+      console.error("Export error:", requestError);
       setError(requestError.message || "Export could not be generated.");
     } finally {
       setLoading(false);
@@ -284,7 +292,7 @@ function Export() {
                   <button
                     type="button"
                     className="font-mono text-xs text-[var(--accent-primary)] hover:underline cursor-pointer bg-transparent border-0 p-0"
-                    onClick={() => handleGenerate({ user_id: userId, ...item.payload })}
+                    onClick={() => handleGenerate(item.payload)}
                   >
                     Download again
                   </button>
