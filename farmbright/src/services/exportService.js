@@ -38,9 +38,8 @@ async function fetchFeedingLog(flockIds, startDate, endDate) {
     .from('feeding_events')
     .select(`
       date, timestamp,
-      total_weight, weight_per_bird,
-      cost_total, cost_per_bird, input_method,
-      flocks ( name,
+      total_weight, cost_per_lb_at_time, input_method,
+      flocks ( name, current_headcount,
         breeds ( name,
           animal_types ( name, emoji )
         )
@@ -53,7 +52,16 @@ async function fetchFeedingLog(flockIds, startDate, endDate) {
   if (flockIds?.length > 0) query = query.in('flock_id', flockIds);
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  return (data || []).map((r) => {
+    const hc = Math.max(r.flocks?.current_headcount || 1, 1);
+    const cost_total = (r.total_weight || 0) * (r.cost_per_lb_at_time || 0);
+    return {
+      ...r,
+      weight_per_bird: (r.total_weight || 0) / hc,
+      cost_total,
+      cost_per_bird: cost_total / hc,
+    };
+  });
 }
 
 async function fetchProductionLog(flockIds, startDate, endDate) {
@@ -90,7 +98,7 @@ async function fetchInventory(userId) {
 async function fetchFinancials(flockIds, startDate, endDate) {
   let query = supabase
     .from('feeding_events')
-    .select('date, flock_id, cost_total, flocks ( name )')
+    .select('date, flock_id, total_weight, cost_per_lb_at_time, flocks ( name )')
     .gte('date', startDate)
     .lte('date', endDate);
   if (flockIds?.length > 0) query = query.in('flock_id', flockIds);
@@ -101,7 +109,7 @@ async function fetchFinancials(flockIds, startDate, endDate) {
   (data || []).forEach((r) => {
     const name = r.flocks?.name || 'Unknown';
     if (!byFlock[name]) byFlock[name] = { name, total_cost: 0 };
-    byFlock[name].total_cost += r.cost_total || 0;
+    byFlock[name].total_cost += (r.total_weight || 0) * (r.cost_per_lb_at_time || 0);
   });
   return Object.values(byFlock);
 }
