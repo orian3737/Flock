@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Bird,
+  ClipboardList,
   Download,
   LayoutDashboard,
   LogOut,
@@ -17,10 +18,12 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useFarm } from "../context/FarmContext";
 import { getQueue } from "../services/scaleHouseApi";
+import { getOpenFollowUps } from "../services/observationsApi";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/flocks", label: "Flocks", icon: Bird },
+  { to: "/log", label: "Farm Log", icon: ClipboardList },
   { to: "/scale-house", label: "Scale House", icon: Scale },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/financials", label: "Financials", icon: TrendingUp },
@@ -35,6 +38,7 @@ function AppLayout() {
   const { signOut } = useAuth();
   const { farmName, userId } = useFarm();
   const [unfedCount, setUnfedCount] = useState(0);
+  const [followUpCount, setFollowUpCount] = useState(0);
   const [navOpen, setNavOpen] = useState(false);
 
   // Close drawer on navigation
@@ -59,6 +63,22 @@ function AppLayout() {
       mounted = false;
       window.clearInterval(intervalId);
     };
+  }, [userId]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadFollowUps() {
+      if (!userId) { setFollowUpCount(0); return; }
+      try {
+        const data = await getOpenFollowUps(userId);
+        if (mounted) setFollowUpCount(data.length);
+      } catch {
+        if (mounted) setFollowUpCount(0);
+      }
+    }
+    loadFollowUps();
+    const id = window.setInterval(loadFollowUps, 60000);
+    return () => { mounted = false; window.clearInterval(id); };
   }, [userId]);
 
   async function handleSignOut() {
@@ -137,6 +157,11 @@ function AppLayout() {
                 {item.to === "/scale-house" && unfedCount > 0 ? (
                   <span className="ml-auto flex items-center justify-center bg-warning text-[#071107] font-mono text-[11px] font-bold rounded-full h-[22px] min-w-[22px] px-1.5">
                     {unfedCount}
+                  </span>
+                ) : null}
+                {item.to === "/log" && followUpCount > 0 ? (
+                  <span className="ml-auto flex items-center justify-center bg-[var(--accent-warn)] text-[#071107] font-mono text-[11px] font-bold rounded-full h-[22px] min-w-[22px] px-1.5">
+                    {followUpCount}
                   </span>
                 ) : null}
               </NavLink>

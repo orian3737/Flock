@@ -118,6 +118,26 @@ async function fetchInventory(userId) {
   return data || [];
 }
 
+async function fetchObservations(flockIds, startDate, endDate) {
+  let query = supabase
+    .from('observation_logs')
+    .select(`
+      id, flock_id, animal_id, date, category,
+      detail, severity, follow_up_needed,
+      follow_up_resolved, created_at,
+      flocks ( name ),
+      animals ( identifier )
+    `)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: false })
+    .order('severity', { ascending: false });
+  if (flockIds?.length > 0) query = query.in('flock_id', flockIds);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
 async function fetchFinancials(flockIds, startDate, endDate) {
   let query = supabase
     .from('feeding_events')
@@ -217,6 +237,22 @@ export async function generateCSV({ userId, reportTypes, flockIds, startDate, en
     results.push({ name: 'Financials', headers, rows });
   }
 
+  if (reportTypes.includes('observations')) {
+    const data = await fetchObservations(flockIds, startDate, endDate);
+    const headers = ['Date', 'Flock', 'Animal', 'Category', 'Detail', 'Severity', 'Follow-up Needed', 'Resolved'];
+    const rows = data.map((r) => [
+      r.date,
+      r.flocks?.name || '',
+      r.animals?.identifier || '',
+      r.category,
+      r.detail || '',
+      r.severity,
+      r.follow_up_needed ? 'Yes' : 'No',
+      r.follow_up_resolved ? 'Yes' : 'No',
+    ]);
+    results.push({ name: 'Observations', headers, rows });
+  }
+
   let csv = '';
   results.forEach((section) => {
     csv += `${section.name}\n`;
@@ -281,6 +317,7 @@ export async function generatePDF({ userId, farmName, reportTypes, flockIds, sta
     production_log:    '• Production Log',
     financial_summary: '• Financial Summary',
     inventory:         '• Feed Inventory',
+    observations:      '• Observations & Notes',
   };
   reportTypes.forEach((type) => {
     doc.text(labels[type] || `• ${type}`, 25, yPos);
@@ -402,6 +439,35 @@ export async function generatePDF({ userId, farmName, reportTypes, flockIds, sta
           data.cell.styles.fontStyle  = 'bold';
           data.cell.styles.fillColor  = MID_GREEN;
           data.cell.styles.textColor  = LIGHT_GREEN;
+        }
+      },
+    });
+  }
+
+  if (reportTypes.includes('observations')) {
+    const startY = addSectionHeader('Observations & Notes');
+    const data = await fetchObservations(flockIds, startDate, endDate);
+    autoTable(doc, {
+      startY,
+      head: [['Date', 'Flock', 'Animal', 'Category', 'Detail', 'Severity', 'Follow-up']],
+      body: data.map((r) => [
+        r.date,
+        r.flocks?.name || '',
+        r.animals?.identifier || '',
+        r.category,
+        r.detail || '',
+        r.severity,
+        r.follow_up_needed ? (r.follow_up_resolved ? 'Resolved' : 'Open') : '—',
+      ]),
+      headStyles: headStyles, bodyStyles: bodyStyles, alternateRowStyles: altStyles,
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        if (data.column.index === 5 && data.section === 'body') {
+          if (data.cell.text[0] === 'urgent')  data.cell.styles.textColor = [198, 40, 40];
+          else if (data.cell.text[0] === 'concern') data.cell.styles.textColor = [255, 143, 0];
+        }
+        if (data.column.index === 6 && data.section === 'body' && data.cell.text[0] === 'Open') {
+          data.cell.styles.textColor = [255, 143, 0];
         }
       },
     });
@@ -640,6 +706,41 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
   finSheet.getColumn('cost').numFmt = '$#,##0.00';
   styleDataRows(finSheet, 2, finLast);
   autoWidth(finSheet);
+
+  // ── Observations sheet ────────────────────────────────────────────────────
+  const obsSheet = wb.addWorksheet('Observations');
+  styleHeader(obsSheet, [
+    { header: 'Date',             key: 'date',       width: 12 },
+    { header: 'Flock',            key: 'flock',      width: 20 },
+    { header: 'Animal',           key: 'animal',     width: 12 },
+    { header: 'Category',         key: 'category',   width: 14 },
+    { header: 'Detail',           key: 'detail',     width: 35 },
+    { header: 'Severity',         key: 'severity',   width: 10 },
+    { header: 'Follow-up Needed', key: 'followup',   width: 16 },
+    { header: 'Resolved',         key: 'resolved',   width: 10 },
+  ]);
+
+  const obsData = await fetchObservations(flockIds, startDate, endDate);
+  obsData.forEach((r) => {
+    const row = obsSheet.addRow({
+      date:     r.date,
+      flock:    r.flocks?.name || '',
+      animal:   r.animals?.identifier || '',
+      category: r.category,
+      detail:   r.detail || '',
+      severity: r.severity,
+      followup: r.follow_up_needed ? 'Yes' : 'No',
+      resolved: r.follow_up_resolved ? 'Yes' : 'No',
+    });
+    const sevCell = row.getCell('severity');
+    if (r.severity === 'urgent')  sevCell.font = { bold: true, color: { argb: 'FFC62828' } };
+    else if (r.severity === 'concern') sevCell.font = { bold: true, color: { argb: 'FFFF8F00' } };
+    if (r.follow_up_needed && !r.follow_up_resolved) {
+      row.getCell('followup').font = { bold: true, color: { argb: 'FFFF8F00' } };
+    }
+  });
+  styleDataRows(obsSheet, 2, obsSheet.rowCount);
+  autoWidth(obsSheet);
 
   // ── Write and download ────────────────────────────────────────────────────
   const buffer = await wb.xlsx.writeBuffer();

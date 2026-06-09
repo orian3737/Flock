@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { getAnimalEmoji } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
 import { dismissInventoryAlert, getDashboardOverview } from "../../services/dashboardApi";
+import { getTodayObservations, getOpenFollowUps, resolveFollowUp } from "../../services/observationsApi";
+import { CATEGORIES } from "../../components/ObservationEntry";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" });
 const numberFormatter = new Intl.NumberFormat("en-US");
@@ -39,6 +41,9 @@ function Dashboard() {
   const [overview, setOverview] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [todayObs, setTodayObs] = useState([]);
+  const [followUps, setFollowUps] = useState([]);
+  const [resolvedObsIds, setResolvedObsIds] = useState(new Set());
 
   const fetchOverview = useCallback(async () => {
     if (!userId) { setIsLoading(false); return; }
@@ -58,6 +63,12 @@ function Dashboard() {
     const id = window.setInterval(fetchOverview, 60000);
     return () => window.clearInterval(id);
   }, [fetchOverview]);
+
+  useEffect(() => {
+    if (!userId) return;
+    getTodayObservations(userId).then(setTodayObs).catch(() => {});
+    getOpenFollowUps(userId).then(setFollowUps).catch(() => {});
+  }, [userId]);
 
   const today     = overview?.today || {};
   const yesterday = overview?.yesterday || {};
@@ -79,6 +90,12 @@ function Dashboard() {
   async function handleDismissAlert(alertId) {
     await dismissInventoryAlert(alertId);
     fetchOverview();
+  }
+
+  async function handleResolveObs(id) {
+    await resolveFollowUp(id);
+    setResolvedObsIds((prev) => new Set([...prev, id]));
+    setFollowUps((prev) => prev.filter((f) => f.id !== id));
   }
 
   if (isLoading) return <section className="panel-card">Loading dashboard...</section>;
@@ -312,6 +329,103 @@ function Dashboard() {
           {formatNumber(today.total_eggs)}
         </section>
       </div>
+
+      {followUps.length > 0 && (
+        <section className="bg-[rgba(255,143,0,0.10)] border border-[rgba(255,143,0,0.40)] border-l-8 border-l-[var(--accent-warn)] rounded-lg p-4 grid gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="display-font text-lg m-0 text-[var(--text-primary)]">Open Follow-ups</h2>
+            <span className="font-mono text-xs text-[var(--accent-warn)]">{followUps.length} pending</span>
+          </div>
+          <div className="grid gap-2">
+            {followUps.map((obs) => {
+              const cat = CATEGORIES.find((c) => c.key === obs.category);
+              return (
+                <div key={obs.id} className="flex items-start justify-between gap-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border)] p-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span>{cat?.emoji}</span>
+                      <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{cat?.label}</span>
+                      <span className="font-mono text-xs text-[var(--text-muted)]">
+                        {obs.flocks?.breeds?.animal_types?.emoji} {obs.flocks?.name}
+                      </span>
+                      {obs.animals && (
+                        <span className="font-mono text-xs text-[var(--accent-primary)]">· {obs.animals.identifier}</span>
+                      )}
+                    </div>
+                    {obs.detail && (
+                      <p className="font-mono text-xs text-[var(--text-secondary)] m-0 leading-relaxed">{obs.detail}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleResolveObs(obs.id)}
+                    className="btn btn-xs font-mono shrink-0 bg-[var(--accent-primary)] text-[var(--bg-base)] border-none"
+                  >
+                    Resolve ✓
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/log")}
+            className="font-mono text-xs text-[var(--accent-primary)] hover:underline text-left"
+          >
+            View all in Farm Log →
+          </button>
+        </section>
+      )}
+
+      {todayObs.length > 0 && (
+        <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-4 grid gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="display-font text-lg m-0 text-[var(--text-primary)]">Today's Observations</h2>
+            <button
+              type="button"
+              onClick={() => navigate("/log")}
+              className="font-mono text-xs text-[var(--accent-primary)] hover:underline"
+            >
+              View all →
+            </button>
+          </div>
+          <div className="grid gap-2">
+            {todayObs.map((obs) => {
+              const cat = CATEGORIES.find((c) => c.key === obs.category);
+              return (
+                <div
+                  key={obs.id}
+                  className={`flex items-start gap-3 rounded-lg border border-[var(--border)] p-3 font-mono text-xs ${
+                    obs.severity === "urgent"
+                      ? "border-l-4 border-l-[var(--accent-danger)] bg-red-950/20 animate-pulse"
+                      : obs.severity === "concern"
+                      ? "border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20"
+                      : "border-l-4 border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]"
+                  }`}
+                >
+                  <span className="text-lg shrink-0">{cat?.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-bold text-[var(--text-primary)]">{cat?.label}</span>
+                      <span className="text-[var(--text-muted)]">
+                        {obs.flocks?.breeds?.animal_types?.emoji} {obs.flocks?.name}
+                      </span>
+                      {obs.severity !== "normal" && (
+                        <span className={`badge badge-xs border-none ${obs.severity === "urgent" ? "bg-[var(--accent-danger)] text-white" : "bg-[var(--accent-warn)] text-[var(--bg-base)]"}`}>
+                          {obs.severity.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    {obs.detail && (
+                      <p className="text-[var(--text-secondary)] leading-relaxed m-0">{obs.detail}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </section>
   );
 }

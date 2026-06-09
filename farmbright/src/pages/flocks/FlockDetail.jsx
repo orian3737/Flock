@@ -3,8 +3,11 @@ import { ArrowLeft, Plus, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import InlineFeedback from "../../components/InlineFeedback";
+import ObservationEntry, { CATEGORIES } from "../../components/ObservationEntry";
+import AnimalDrawer from "../../components/AnimalDrawer";
 import { getFlockDetail, logCasualty, logProduction } from "../../services/flocksApi";
 import { getFlockYoungSales, logYoungSale } from "../../services/revenueApi";
+import { getFlockAnimals, getObservationHistory, enableFlockTracking, createAnimal } from "../../services/observationsApi";
 import { supabase } from "../../services/supabaseClient";
 import { getClassConfig } from "../../utils/animalClass";
 import { useAnimalClass } from "../../hooks/useAnimalClass";
@@ -22,6 +25,15 @@ function FlockDetail() {
   const [litterForm, setLitterForm] = useState({ date: todayString(), litter_count: 1, litter_size: 0, litter_notes: '' });
   const [youngSales, setYoungSales] = useState([]);
   const [litterLogs, setLitterLogs] = useState([]);
+  const [detailTab, setDetailTab] = useState('observations');
+  const [flockObs, setFlockObs] = useState([]);
+  const [flockAnimals, setFlockAnimals] = useState([]);
+  const [showObsEntry, setShowObsEntry] = useState(false);
+  const [selectedAnimalId, setSelectedAnimalId] = useState(null);
+  const [showAddAnimal, setShowAddAnimal] = useState(false);
+  const [addAnimalForm, setAddAnimalForm] = useState({ identifier: '', sex: 'female', source: 'hatched', date_of_birth: null });
+  const [savingAnimal, setSavingAnimal] = useState(false);
+  const [enablingTracking, setEnablingTracking] = useState(false);
 
   const flock = detail?.flock;
   const stats = detail?.stats || {};
@@ -61,6 +73,19 @@ function FlockDetail() {
 
   useEffect(() => { refresh(); }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() - 90);
+    const startDate = d.toISOString().slice(0, 10);
+    getObservationHistory(null, startDate, today, { flockId: Number(id) }).then(setFlockObs).catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    if (!flock?.individual_tracking_enabled) { setFlockAnimals([]); return; }
+    getFlockAnimals(id).then(setFlockAnimals).catch(() => {});
+  }, [id, flock?.individual_tracking_enabled]);
+
   async function submitProduction(payload) {
     setFeedback(null);
     try {
@@ -92,6 +117,42 @@ function FlockDetail() {
     } catch (error) {
       setFeedback({ type: "error", message: formatError(error) });
     }
+  }
+
+  async function handleEnableTracking() {
+    setEnablingTracking(true);
+    try {
+      await enableFlockTracking(id, true);
+      await refresh();
+    } catch {
+      // silent
+    } finally {
+      setEnablingTracking(false);
+    }
+  }
+
+  async function handleSaveAnimal() {
+    if (!addAnimalForm.identifier) return;
+    setSavingAnimal(true);
+    try {
+      await createAnimal({ ...addAnimalForm, flock_id: Number(id) });
+      setShowAddAnimal(false);
+      setAddAnimalForm({ identifier: '', sex: 'female', source: 'hatched', date_of_birth: null });
+      const animals = await getFlockAnimals(id).catch(() => flockAnimals);
+      setFlockAnimals(animals);
+    } catch {
+      // silent
+    } finally {
+      setSavingAnimal(false);
+    }
+  }
+
+  async function reloadObs() {
+    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() - 90);
+    const startDate = d.toISOString().slice(0, 10);
+    const updated = await getObservationHistory(null, startDate, today, { flockId: Number(id) }).catch(() => flockObs);
+    setFlockObs(updated);
   }
 
   if (loading) return <div className="panel-card">Loading flock detail...</div>;
@@ -331,6 +392,218 @@ function FlockDetail() {
           </section>
         </aside>
       </div>
+
+      {/* ── Observations / Animals tab section ── */}
+      <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg overflow-hidden">
+        <div className="flex border-b border-[var(--border)]">
+          {[['observations', '🔭 Observations'], ['animals', '🐾 Animals']].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setDetailTab(key)}
+              className={`flex-1 font-mono text-xs py-3 px-4 border-b-2 transition-colors ${
+                detailTab === key
+                  ? 'border-b-[var(--accent-primary)] text-[var(--text-primary)] font-bold bg-[var(--bg-elevated)]'
+                  : 'border-b-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+              }`}
+            >
+              {label}
+              {key === 'observations' && flockObs.length > 0 && (
+                <span className="ml-1.5 badge badge-xs font-mono bg-[var(--bg-base)] border border-[var(--border)] text-[var(--text-muted)]">{flockObs.length}</span>
+              )}
+              {key === 'animals' && flockAnimals.length > 0 && (
+                <span className="ml-1.5 badge badge-xs font-mono bg-[var(--bg-base)] border border-[var(--border)] text-[var(--text-muted)]">{flockAnimals.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4">
+          {detailTab === 'observations' && (
+            <div className="grid gap-3">
+              {!showObsEntry ? (
+                <button
+                  type="button"
+                  onClick={() => setShowObsEntry(true)}
+                  className="btn btn-sm btn-ghost w-full font-mono border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+                >
+                  + Add observation
+                </button>
+              ) : (
+                <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                  <ObservationEntry
+                    compact={false}
+                    flockId={Number(id)}
+                    flockName={flock.name}
+                    animals={flockAnimals}
+                    onSave={async () => { setShowObsEntry(false); await reloadObs(); }}
+                    onCancel={() => setShowObsEntry(false)}
+                  />
+                </div>
+              )}
+              {flockObs.length === 0 ? (
+                <p className="font-mono text-xs text-[var(--text-muted)] text-center py-4 m-0">No observations in the last 90 days</p>
+              ) : (
+                <div className="grid gap-2">
+                  {flockObs.map((obs) => {
+                    const cat = CATEGORIES.find((c) => c.key === obs.category);
+                    return (
+                      <div
+                        key={obs.id}
+                        className={`rounded-xl border border-[var(--border)] p-3 font-mono text-xs ${
+                          obs.severity === 'urgent' ? 'border-l-4 border-l-[var(--accent-danger)] bg-red-950/20'
+                          : obs.severity === 'concern' ? 'border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20'
+                          : 'border-l-4 border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span>{cat?.emoji}</span>
+                          <span className="font-bold text-[var(--text-primary)]">{cat?.label}</span>
+                          {obs.animals && <span className="text-[var(--accent-primary)]">· {obs.animals.identifier}</span>}
+                          {obs.severity !== 'normal' && (
+                            <span className={`badge badge-xs border-none ${obs.severity === 'urgent' ? 'bg-[var(--accent-danger)] text-white' : 'bg-[var(--accent-warn)] text-[var(--bg-base)]'}`}>
+                              {obs.severity.toUpperCase()}
+                            </span>
+                          )}
+                          <span className="text-[var(--text-muted)] ml-auto">{obs.date}</span>
+                        </div>
+                        {obs.detail && <p className="text-[var(--text-secondary)] m-0">{obs.detail}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {detailTab === 'animals' && (
+            <div className="grid gap-3">
+              {!flock.individual_tracking_enabled ? (
+                <div className="text-center py-6">
+                  <p className="font-mono text-sm text-[var(--text-secondary)] mb-3 m-0">🐾 Individual tracking is not enabled for this flock.</p>
+                  <p className="font-mono text-xs text-[var(--text-muted)] mb-4 m-0">Enable it to track weight, health records, and observations per animal.</p>
+                  <button
+                    type="button"
+                    onClick={handleEnableTracking}
+                    disabled={enablingTracking}
+                    className="btn btn-sm font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none disabled:opacity-50"
+                  >
+                    {enablingTracking ? 'Enabling...' : 'Enable Individual Tracking'}
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs text-[var(--text-muted)]">{flockAnimals.length} animals tracked</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddAnimal(true)}
+                      className="btn btn-xs font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none"
+                    >
+                      + Add Animal
+                    </button>
+                  </div>
+                  {showAddAnimal && (
+                    <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4 grid gap-3">
+                      <p className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider m-0">New Animal</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="field">
+                          <span>Identifier / Tag</span>
+                          <input type="text" value={addAnimalForm.identifier} placeholder="e.g. A001, Daisy"
+                            onChange={(e) => setAddAnimalForm((f) => ({ ...f, identifier: e.target.value }))} />
+                        </label>
+                        <label className="field">
+                          <span>Sex</span>
+                          <select value={addAnimalForm.sex} onChange={(e) => setAddAnimalForm((f) => ({ ...f, sex: e.target.value }))}>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="unknown">Unknown</option>
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Source</span>
+                          <select value={addAnimalForm.source} onChange={(e) => setAddAnimalForm((f) => ({ ...f, source: e.target.value }))}>
+                            <option value="hatched">Hatched</option>
+                            <option value="purchased">Purchased</option>
+                            <option value="born">Born</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Date of Birth</span>
+                          <input type="date" value={addAnimalForm.date_of_birth || ''}
+                            onChange={(e) => setAddAnimalForm((f) => ({ ...f, date_of_birth: e.target.value || null }))} />
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={handleSaveAnimal} disabled={savingAnimal || !addAnimalForm.identifier}
+                          className="btn btn-sm font-mono flex-1 bg-[var(--accent-primary)] text-[var(--bg-base)] border-none disabled:opacity-50">
+                          {savingAnimal ? 'Saving...' : 'Save Animal'}
+                        </button>
+                        <button type="button" onClick={() => setShowAddAnimal(false)}
+                          className="btn btn-sm btn-ghost font-mono border border-[var(--border)]">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {flockAnimals.length === 0 ? (
+                    <p className="font-mono text-xs text-[var(--text-muted)] text-center py-4 m-0">No animals added yet</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full font-mono text-xs border-collapse">
+                        <thead>
+                          <tr>
+                            {['ID / Tag', 'Sex', 'Status', 'Latest Wt', 'Issues', ''].map((h) => (
+                              <th key={h} className="text-left text-[var(--text-muted)] pb-2 pr-3 uppercase text-[10px] tracking-wider">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {flockAnimals.map((a) => (
+                            <tr key={a.id} className="border-t border-[var(--border)]">
+                              <td className="py-2 pr-3 font-bold text-[var(--text-primary)]">{a.identifier}</td>
+                              <td className="py-2 pr-3 text-[var(--text-secondary)] capitalize">{a.sex}</td>
+                              <td className="py-2 pr-3">
+                                <span className={`badge badge-xs font-mono border-none capitalize ${a.status === 'active' ? 'bg-[var(--accent-primary)] text-[var(--bg-base)]' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'}`}>
+                                  {a.status}
+                                </span>
+                              </td>
+                              <td className="py-2 pr-3 text-[var(--text-secondary)]">{a.latest_weight ? `${a.latest_weight} lbs` : '—'}</td>
+                              <td className="py-2 pr-3">
+                                {a.open_health_issues > 0
+                                  ? <span className="badge badge-xs bg-[var(--accent-warn)] text-[var(--bg-base)] border-none">{a.open_health_issues}</span>
+                                  : <span className="text-[var(--text-muted)]">—</span>}
+                              </td>
+                              <td className="py-2">
+                                <button type="button" onClick={() => setSelectedAnimalId(a.id)}
+                                  className="btn btn-xs btn-ghost font-mono border border-[var(--border)] text-[var(--text-secondary)]">
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {selectedAnimalId && (
+        <AnimalDrawer
+          animalId={selectedAnimalId}
+          onClose={() => setSelectedAnimalId(null)}
+          onUpdate={async () => {
+            const animals = await getFlockAnimals(id).catch(() => flockAnimals);
+            setFlockAnimals(animals);
+          }}
+        />
+      )}
 
       {modal === "production" ? (
         <ProductionModal onClose={() => setModal(null)} onSubmit={submitProduction} />

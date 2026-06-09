@@ -16,6 +16,7 @@ import Inventory from "./pages/inventory/Inventory.jsx";
 import OnboardingWizard from "./pages/onboarding/OnboardingWizard.jsx";
 import Export from "./pages/reports/Export.jsx";
 import ScaleHouse from "./pages/scale-house/ScaleHouse.jsx";
+import FarmLog from "./pages/log/FarmLog.jsx";
 import FarmSetup from "./pages/settings/FarmSetup.jsx";
 import Settings from "./pages/settings/Settings.jsx";
 import "./index.css";
@@ -36,6 +37,7 @@ export function App() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/flocks" element={<FlockList />} />
                   <Route path="/flocks/:id" element={<FlockDetail />} />
+                  <Route path="/log" element={<FarmLog />} />
                   <Route path="/scale-house" element={<ScaleHouse />} />
                   <Route path="/inventory" element={<Inventory />} />
                   <Route path="/financials" element={<Financials />} />

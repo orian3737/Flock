@@ -15,6 +15,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
+import ObservationEntry, { CATEGORIES } from "../../components/ObservationEntry";
+import { getFlockAnimals } from "../../services/observationsApi";
 import {
   deleteAllTodayFeedings,
   deleteFeedingEvent,
@@ -106,7 +108,6 @@ function ScaleHouse() {
   const [litterNotes, setLitterNotes] = useState("");
   const [birthsToday, setBirthsToday] = useState(false);
   const [productionSkipped, setProductionSkipped] = useState(false);
-  const [sessionNotes, setSessionNotes] = useState("");
   const [sessionDate, setSessionDate] = useState(todayString());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCostDetails, setShowCostDetails] = useState(false);
@@ -130,6 +131,9 @@ function ScaleHouse() {
   const [showRestartMenu, setShowRestartMenu] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [showFlockPicker, setShowFlockPicker] = useState(false);
+  const [flockAnimals,   setFlockAnimals]   = useState([]);
+  const [observations,   setObservations]   = useState([]);
+  const [showAddObs,     setShowAddObs]     = useState(false);
   const [sessionData, setSessionData] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [panelDate, setPanelDate] = useState(todayString());
@@ -271,6 +275,17 @@ function ScaleHouse() {
     }
   }, [currentFlock, selectedFeed]);
 
+  // Load individual animals when flock changes (if tracking enabled)
+  useEffect(() => {
+    setObservations([]);
+    setShowAddObs(false);
+    if (currentFlock?.individual_tracking_enabled && currentFlock.flock_id) {
+      getFlockAnimals(currentFlock.flock_id).then(setFlockAnimals).catch(() => setFlockAnimals([]));
+    } else {
+      setFlockAnimals([]);
+    }
+  }, [currentFlock?.flock_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-capture stable scale reading
   useEffect(() => {
     if (inputMethod === "scale" && autoCapture && scaleStable && scaleWeight > 0) {
@@ -291,8 +306,9 @@ function ScaleHouse() {
     setLitterNotes("");
     setBirthsToday(false);
     setProductionSkipped(false);
-    setSessionNotes("");
     setShowCostDetails(false);
+    setObservations([]);
+    setShowAddObs(false);
   }
 
   function handleSkip() {
@@ -329,14 +345,13 @@ function ScaleHouse() {
           input_method: inputMethod,
         },
         production: productionSkipped
-          ? { egg_count: null, water_consumed: null, notes: sessionNotes || null }
+          ? { egg_count: null, water_consumed: null }
           : {
               egg_count: safeId(eggCount),
               water_consumed: waterConsumed === "" ? null : Number(waterConsumed),
               litter_count: litterCount === "" ? null : Number(litterCount),
               litter_size: litterSize === "" ? null : Number(litterSize),
               litter_notes: litterNotes || null,
-              notes: sessionNotes || null,
             },
       });
       setFlash(true);
@@ -578,7 +593,11 @@ function ScaleHouse() {
           scaleWeight={scaleWeight}
           selectedFeed={selectedFeed}
           sessionDate={sessionDate}
-          sessionNotes={sessionNotes}
+          flockAnimals={flockAnimals}
+          observations={observations}
+          setObservations={setObservations}
+          showAddObs={showAddObs}
+          setShowAddObs={setShowAddObs}
           setAutoCapture={setAutoCapture}
           setCasualtyNotes={setCasualtyNotes}
           setEggCount={setEggCount}
@@ -594,7 +613,6 @@ function ScaleHouse() {
           setQuickFlockId={setQuickFlockId}
           setSelectedFeed={setSelectedFeed}
           setSessionDate={setSessionDate}
-          setSessionNotes={setSessionNotes}
           setShowDatePicker={setShowDatePicker}
           setWaterConsumed={setWaterConsumed}
           showDatePicker={showDatePicker}
@@ -1452,7 +1470,11 @@ function ScaleEntryCard(props) {
     scaleWeight,
     selectedFeed,
     sessionDate,
-    sessionNotes,
+    flockAnimals,
+    observations,
+    setObservations,
+    showAddObs,
+    setShowAddObs,
     setAutoCapture,
     setCasualtyNotes,
     setEggCount,
@@ -1466,7 +1488,6 @@ function ScaleEntryCard(props) {
     setQuickFlockId,
     setSelectedFeed,
     setSessionDate,
-    setSessionNotes,
     setShowDatePicker,
     setWaterConsumed,
     showDatePicker,
@@ -1862,17 +1883,69 @@ function ScaleEntryCard(props) {
         </ScaleSection>
       ) : null}
 
-      <ScaleSection title="Notes">
-        <textarea
-          className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[92px] outline-none p-[10px] resize-y w-full"
-          maxLength={500}
-          placeholder="Behavior, condition, anything unusual..."
-          value={sessionNotes}
-          onChange={(event) => setSessionNotes(event.target.value)}
-        />
-        <span className={`text-xs justify-self-end ${sessionNotes.length >= 400 ? "text-[var(--accent-warn)]" : "text-[var(--text-muted)]"}`}>
-          {sessionNotes.length}/500
-        </span>
+      <ScaleSection title="Observations">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[10px] text-[var(--text-muted)]">Log anything unusual about this flock</span>
+          {observations.length > 0 && (
+            <span className="badge badge-xs font-mono bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]">
+              {observations.length} logged
+            </span>
+          )}
+        </div>
+
+        {observations.map((obs, i) => (
+          <div
+            key={i}
+            className={`p-3 rounded-xl font-mono text-xs border border-[var(--border)] ${
+              obs.severity === 'urgent'
+                ? 'border-l-4 border-l-[var(--accent-danger)] bg-red-950/20'
+                : obs.severity === 'concern'
+                ? 'border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20'
+                : 'border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span>{CATEGORIES.find(c => c.key === obs.category)?.emoji}</span>
+              <span className="font-bold text-[var(--text-primary)]">{CATEGORIES.find(c => c.key === obs.category)?.label}</span>
+              {obs.animal_id && obs.animal_identifier && (
+                <span className="text-[var(--accent-primary)]">· {obs.animal_identifier}</span>
+              )}
+              {obs.severity !== 'normal' && (
+                <span className={`badge badge-xs border-none ${obs.severity === 'urgent' ? 'bg-[var(--accent-danger)] text-white' : 'bg-[var(--accent-warn)] text-[var(--bg-base)]'}`}>
+                  {obs.severity.toUpperCase()}
+                </span>
+              )}
+            </div>
+            {obs.detail && <p className="text-[var(--text-secondary)] leading-relaxed m-0">{obs.detail}</p>}
+          </div>
+        ))}
+
+        {!showAddObs ? (
+          <button
+            type="button"
+            onClick={() => setShowAddObs(true)}
+            className="btn btn-sm btn-ghost w-full font-mono border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+          >
+            + Add observation
+          </button>
+        ) : (
+          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+            <ObservationEntry
+              compact={true}
+              flockId={currentFlock?.flock_id}
+              flockName={currentFlock?.name}
+              animals={flockAnimals}
+              onSave={(obs) => {
+                setObservations(prev => [...prev, {
+                  ...obs,
+                  animal_identifier: flockAnimals.find(a => a.id === obs.animal_id)?.identifier,
+                }])
+                setShowAddObs(false)
+              }}
+              onCancel={() => setShowAddObs(false)}
+            />
+          </div>
+        )}
       </ScaleSection>
 
       <div className="border-t border-[rgba(46,125,50,0.55)] pt-4 mt-1">

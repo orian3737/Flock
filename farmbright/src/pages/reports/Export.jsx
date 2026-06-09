@@ -13,6 +13,7 @@ const reportOptions = [
   { id: "production_log", label: "Production" },
   { id: "financial_summary", label: "Financials" },
   { id: "inventory", label: "Inventory" },
+  { id: "observations", label: "Observations & Notes" },
 ];
 
 const formatCards = [
