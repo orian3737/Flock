@@ -270,28 +270,30 @@ function FarmSetup() {
                       </div>
                       <div className="flex flex-wrap gap-1.5 px-1 pb-2 mb-2">
                         {[
-                          { key: 'produces_eggs',  label: '🥚 Eggs' },
-                          { key: 'produces_milk',  label: '🥛 Milk' },
-                          { key: 'produces_meat',  label: '🥩 Meat' },
-                          { key: 'produces_young', label: '🐣 Young' },
-                          { key: 'working_animal', label: '🏋️ Working' },
-                        ].map(({ key, label }) => {
+                          { key: 'produces_eggs',  emoji: '🥚', label: 'Eggs' },
+                          { key: 'produces_milk',  emoji: '🥛', label: 'Milk' },
+                          { key: 'produces_meat',  emoji: '🥩', label: 'Meat' },
+                          { key: 'produces_young', emoji: '🐣', label: 'Young' },
+                          { key: 'working_animal', emoji: '🛡️', label: 'Working' },
+                        ].map(({ key, emoji, label }) => {
                           const active = Boolean(animalType[key]);
                           return (
                             <button
                               key={key}
                               type="button"
                               onClick={() => handleFlagToggle(animalType.id, key, !active)}
-                              className={`font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                                active
-                                  ? 'bg-[var(--accent-green)] border-[var(--accent-green)] text-[var(--bg-base)]'
-                                  : 'bg-transparent border-[var(--border)] text-[var(--text-muted)]'
-                              }`}
+                              className={active
+                                ? 'btn btn-sm font-mono font-bold gap-2 bg-[var(--accent-primary)] text-white border-2 border-[var(--accent-primary)] shadow-lg shadow-green-900/50'
+                                : 'btn btn-sm font-mono gap-2 bg-[var(--bg-base)] text-[var(--text-muted)] border border-[var(--border)] hover:border-[var(--accent-primary)] hover:text-[var(--text-secondary)] transition-colors'
+                              }
                             >
-                              {label}
+                              <span className="text-base">{emoji}</span> {label}
                             </button>
                           );
                         })}
+                        <p className="w-full font-mono text-[10px] text-[var(--text-muted)] mt-2 mb-0">
+                          Tap to toggle what this animal produces
+                        </p>
                       </div>
 
                       {(animalType.breeds || []).map(breed => (
