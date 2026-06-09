@@ -37,7 +37,7 @@ async function fetchFeedingLog(flockIds, startDate, endDate) {
   let query = supabase
     .from('feeding_events')
     .select(`
-      date, timestamp,
+      id, flock_id, date, timestamp,
       total_weight, cost_per_lb_at_time, input_method,
       flocks ( name, current_headcount,
         breeds ( name,
@@ -52,14 +52,37 @@ async function fetchFeedingLog(flockIds, startDate, endDate) {
   if (flockIds?.length > 0) query = query.in('flock_id', flockIds);
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []).map((r) => {
+
+  const events = data || [];
+
+  // Fetch production logs to enrich each event with water/eggs/notes
+  const eventFlockIds = [...new Set(events.map((e) => e.flock_id))];
+  let prodLookup = {};
+  if (eventFlockIds.length > 0) {
+    let prodQuery = supabase
+      .from('production_logs')
+      .select('flock_id, date, egg_count, water_consumed, notes')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .in('flock_id', eventFlockIds);
+    const { data: pd } = await prodQuery;
+    for (const p of pd || []) {
+      prodLookup[`${p.flock_id}:${p.date}`] = p;
+    }
+  }
+
+  return events.map((r) => {
     const hc = Math.max(r.flocks?.current_headcount || 1, 1);
     const cost_total = (r.total_weight || 0) * (r.cost_per_lb_at_time || 0);
+    const prod = prodLookup[`${r.flock_id}:${r.date}`];
     return {
       ...r,
       weight_per_bird: (r.total_weight || 0) / hc,
       cost_total,
       cost_per_bird: cost_total / hc,
+      egg_count: prod?.egg_count ?? null,
+      water_consumed: prod?.water_consumed ?? null,
+      session_notes: prod?.notes ?? null,
     };
   });
 }
@@ -137,7 +160,7 @@ export async function generateCSV({ userId, reportTypes, flockIds, startDate, en
     const headers = [
       'Date', 'Time', 'Flock', 'Breed', 'Type',
       'Feed', 'Weight (lbs)', 'Wt/Bird',
-      'Cost ($)', 'Cost/Bird ($)', 'Method',
+      'Cost ($)', 'Cost/Bird ($)', 'Water (gal)', 'Eggs', 'Notes', 'Method',
     ];
     const rows = data.map((r) => [
       r.date,
@@ -150,6 +173,9 @@ export async function generateCSV({ userId, reportTypes, flockIds, startDate, en
       r.weight_per_bird?.toFixed(3) || '0',
       r.cost_total?.toFixed(2) || '0',
       r.cost_per_bird?.toFixed(4) || '0',
+      r.water_consumed ?? '—',
+      r.egg_count ?? '—',
+      r.session_notes || '',
       r.input_method || '',
     ]);
     results.push({ name: 'Feeding Log', headers, rows });
@@ -288,14 +314,14 @@ export async function generatePDF({ userId, farmName, reportTypes, flockIds, sta
     const data = await fetchFeedingLog(flockIds, startDate, endDate);
     autoTable(doc, {
       startY,
-      head: [['Date', 'Flock', 'Type', 'Feed', 'Weight', 'Wt/Bird', 'Cost', 'Method']],
+      head: [['Date', 'Flock', 'Feed', 'Weight', 'Water', 'Eggs', 'Cost', 'Method']],
       body: data.map((r) => [
         r.date,
         r.flocks?.name || '',
-        r.flocks?.breeds?.animal_types?.name || '',
         r.feed_types?.name || '',
         `${r.total_weight?.toFixed(2)} lbs`,
-        `${r.weight_per_bird?.toFixed(3)} lbs`,
+        r.water_consumed != null ? `${r.water_consumed} gal` : '—',
+        r.egg_count ?? '—',
         `$${r.cost_total?.toFixed(2)}`,
         r.input_method || '',
       ]),
@@ -479,6 +505,9 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
     { header: 'Wt/Bird',       key: 'wtbird',   width: 10 },
     { header: 'Cost ($)',      key: 'cost',     width: 10 },
     { header: 'Cost/Bird ($)', key: 'costbird', width: 12 },
+    { header: 'Water (gal)',   key: 'water',    width: 10 },
+    { header: 'Eggs',          key: 'eggs',     width: 8  },
+    { header: 'Notes',         key: 'notes',    width: 25 },
     { header: 'Method',        key: 'method',   width: 10 },
   ]);
 
@@ -495,6 +524,9 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
       wtbird:   r.weight_per_bird,
       cost:     r.cost_total,
       costbird: r.cost_per_bird,
+      water:    r.water_consumed,
+      eggs:     r.egg_count,
+      notes:    r.session_notes || '',
       method:   r.input_method,
     });
   });

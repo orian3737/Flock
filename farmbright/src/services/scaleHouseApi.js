@@ -218,40 +218,31 @@ export async function getTodayEvents() {
   const [eventsResult, flocksResult] = await Promise.all([
     supabase
       .from("feeding_events")
-      .select("id, flock_id, feed_type_id, date, timestamp, total_weight, cost_per_lb_at_time, input_method, flocks(name, current_headcount), feed_types(name)")
+      .select("id, flock_id, feed_type_id, date, timestamp, total_weight, cost_per_lb_at_time, input_method, flocks(id, name, current_headcount, breeds(name, animal_types(name, emoji))), feed_types(name)")
       .eq("date", today)
       .order("timestamp", { ascending: false }),
     supabase
       .from("flocks")
-      .select("id, name, current_headcount, feed_assignments(feed_types(id))"),
+      .select("id, name, current_headcount"),
   ]);
 
   if (eventsResult.error) throw fmt(eventsResult.error, "Could not load today's events.");
 
   const events = eventsResult.data || [];
   const flocks = flocksResult.data || [];
+  const flockIds = flocks.map((f) => f.id);
+
+  const productionResult = flockIds.length
+    ? await supabase.from("production_logs").select("flock_id, egg_count, water_consumed").eq("date", today).in("flock_id", flockIds)
+    : { data: [] };
+
+  const prodByFlock = {};
+  for (const p of productionResult.data || []) {
+    prodByFlock[p.flock_id] = p;
+  }
 
   const totalWeight = events.reduce((s, e) => s + (e.total_weight || 0), 0);
-  const totalCost = events.reduce(
-    (s, e) => s + (e.total_weight || 0) * (e.cost_per_lb_at_time || 0),
-    0
-  );
-
-  // Get today's production and casualty per flock for the breakdown
-  const flockIds = flocks.map((f) => f.id);
-  const [productionResult, casualtyResult] = await Promise.all([
-    flockIds.length
-      ? supabase.from("production_logs").select("flock_id, egg_count").eq("date", today).in("flock_id", flockIds)
-      : { data: [] },
-    flockIds.length
-      ? supabase.from("casualty_logs").select("flock_id, change_amount").eq("date", today).in("flock_id", flockIds)
-      : { data: [] },
-  ]);
-
-  const eggsByFlock = new Map();
-  for (const p of productionResult.data || []) {
-    eggsByFlock.set(p.flock_id, (eggsByFlock.get(p.flock_id) || 0) + (p.egg_count || 0));
-  }
+  const totalCost = events.reduce((s, e) => s + (e.total_weight || 0) * (e.cost_per_lb_at_time || 0), 0);
 
   const breakdown = flocks.map((f) => {
     const flockEvents = events.filter((e) => e.flock_id === f.id);
@@ -259,10 +250,8 @@ export async function getTodayEvents() {
       flock_id: f.id,
       flock_name: f.name,
       feed_used_lbs: Math.round(flockEvents.reduce((s, e) => s + (e.total_weight || 0), 0) * 100) / 100,
-      cost: Math.round(
-        flockEvents.reduce((s, e) => s + (e.total_weight || 0) * (e.cost_per_lb_at_time || 0), 0) * 100
-      ) / 100,
-      eggs: eggsByFlock.get(f.id) || 0,
+      cost: Math.round(flockEvents.reduce((s, e) => s + (e.total_weight || 0) * (e.cost_per_lb_at_time || 0), 0) * 100) / 100,
+      eggs: prodByFlock[f.id]?.egg_count || 0,
       final_count: f.current_headcount,
     };
   });
@@ -270,14 +259,16 @@ export async function getTodayEvents() {
   return {
     events: events.map((e) => ({
       ...feedingEventJson(e),
-      flock_name: e.flocks?.name || "",
-      feed_name: e.feed_types?.name || "",
+      flocks: e.flocks,
+      feed_types: e.feed_types,
+      egg_count: prodByFlock[e.flock_id]?.egg_count ?? null,
+      water_consumed: prodByFlock[e.flock_id]?.water_consumed ?? null,
     })),
     breakdown,
     totals: {
-      total_weight_today: Math.round(totalWeight * 100) / 100,
-      total_cost_today: Math.round(totalCost * 100) / 100,
-      event_count: events.length,
+      totalWeight: Math.round(totalWeight * 100) / 100,
+      totalCost: Math.round(totalCost * 100) / 100,
+      eventCount: events.length,
     },
   };
 }

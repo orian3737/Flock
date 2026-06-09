@@ -24,7 +24,7 @@ const formatCards = [
 function Export() {
   const { farmName, userId } = useContext(FarmContext);
   const [format, setFormat] = useState("csv");
-  const [reportType, setReportType] = useState("feeding_log");
+  const [selectedReportTypes, setSelectedReportTypes] = useState(["feeding_log"]);
   const [allFlocks, setAllFlocks] = useState(true);
   const [flockIds, setFlockIds] = useState([]);
   const [flocks, setFlocks] = useState([]);
@@ -35,7 +35,7 @@ function Export() {
   const [recent, setRecent] = useState(() => JSON.parse(localStorage.getItem("Flock_recent_exports") || "[]"));
   const [error, setError] = useState("");
 
-  const effectiveReportType = format === "xlsx" ? "full" : reportType;
+  const effectiveReportType = format === "xlsx" ? "full" : (selectedReportTypes[0] || "feeding_log");
 
   useEffect(() => {
     if (!userId) return;
@@ -70,7 +70,7 @@ function Export() {
       userId,
       farmName,
       format,
-      reportTypes: [effectiveReportType],
+      reportTypes: format === "xlsx" ? reportOptions.map((o) => o.id) : selectedReportTypes,
       flockIds: selectedFlockIds,
       startDate: dateRange.start_date,
       endDate: dateRange.end_date,
@@ -152,17 +152,41 @@ function Export() {
           {/* Report type */}
           {format !== "xlsx" ? (
             <div className="bg-[var(--bg-surface)] rounded-lg border border-[var(--border)] p-4">
-              <h2 className="font-mono text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3 m-0">
-                Report Type
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-mono text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider m-0">
+                  Report Types
+                </h2>
+                <div className="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    className="font-mono text-[10px] text-[var(--accent-primary)] hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                    onClick={() => setSelectedReportTypes(reportOptions.map((o) => o.id))}
+                  >
+                    Select All
+                  </button>
+                  <span className="text-[var(--text-muted)] text-[10px]">|</span>
+                  <button
+                    type="button"
+                    className="font-mono text-[10px] text-[var(--text-muted)] hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                    onClick={() => setSelectedReportTypes([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
               {reportOptions.map((option) => (
                 <label key={option.id} className="flex items-center gap-3 py-2 cursor-pointer">
                   <input
-                    checked={reportType === option.id}
-                    type="radio"
-                    name="report-type"
-                    className="radio radio-sm [--chkbg:var(--accent-primary)]"
-                    onChange={() => setReportType(option.id)}
+                    checked={selectedReportTypes.includes(option.id)}
+                    type="checkbox"
+                    className="checkbox checkbox-sm [--chkbg:var(--accent-primary)]"
+                    onChange={() =>
+                      setSelectedReportTypes((prev) =>
+                        prev.includes(option.id)
+                          ? prev.filter((id) => id !== option.id)
+                          : [...prev, option.id]
+                      )
+                    }
                   />
                   <span className="font-mono text-sm text-[var(--text-primary)]">{option.label}</span>
                 </label>
@@ -249,7 +273,10 @@ function Export() {
             onClick={() => handleGenerate()}
           >
             {!loading && <Download size={17} aria-hidden="true" />}
-            {loading ? "Generating..." : `Generate ${format.toUpperCase()} Export`}
+            {loading
+              ? "Generating..."
+              : `Generate ${format.toUpperCase()}${format !== "xlsx" ? ` — ${selectedReportTypes.length} report${selectedReportTypes.length !== 1 ? "s" : ""}` : ""}`
+            }
           </button>
         </aside>
 

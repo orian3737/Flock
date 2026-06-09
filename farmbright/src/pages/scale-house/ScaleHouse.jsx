@@ -109,6 +109,7 @@ function ScaleHouse() {
   const [sessionNotes, setSessionNotes] = useState("");
   const [sessionDate, setSessionDate] = useState(todayString());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showCostDetails, setShowCostDetails] = useState(false);
 
   const [scaleWeight, setScaleWeight] = useState(0);
   const [scaleStable, setScaleStable] = useState(false);
@@ -291,6 +292,7 @@ function ScaleHouse() {
     setBirthsToday(false);
     setProductionSkipped(false);
     setSessionNotes("");
+    setShowCostDetails(false);
   }
 
   function handleSkip() {
@@ -606,6 +608,8 @@ function ScaleHouse() {
           weightPerBird={weightPerBird}
           onQuickSubmit={handleSubmit}
           flash={flash}
+          showCostDetails={showCostDetails}
+          setShowCostDetails={setShowCostDetails}
         />
 
         <TodayLogPanel eventsData={eventsData} onDelete={handleDeleteEvent} />
@@ -1476,6 +1480,8 @@ function ScaleEntryCard(props) {
     weightPerBird,
     onQuickSubmit,
     flash,
+    showCostDetails,
+    setShowCostDetails,
   } = props;
 
   const cardClass = `scale-entry-inner bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg min-w-0 p-[18px] grid gap-[18px]${flash ? " shadow-[0_0_0_2px_rgba(76,175,80,0.45)]" : ""}`;
@@ -1721,14 +1727,36 @@ function ScaleEntryCard(props) {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          <span className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] py-2 px-3">{formatNumber(weightPerBird, 2)} lbs/bird</span>
-          <span className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] py-2 px-3">{formatMoney(costTotal)} total</span>
-          <span className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] py-2 px-3">{formatMoney(costPerBird)}/bird</span>
-        </div>
         <p className="text-[var(--text-muted)] text-xs m-0">
           Feed remaining: {currentFeed ? `${formatNumber(currentFeed.current_on_hand)} ${currentFeed.unit}` : "Select feed"}
         </p>
+      </ScaleSection>
+
+      <ScaleSection title="Water">
+        <div className="flex items-center gap-3">
+          <input
+            className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[28px] max-w-[150px] outline-none py-1 px-0"
+            min="0"
+            placeholder="0.0"
+            step="0.1"
+            type="number"
+            value={waterConsumed}
+            onChange={(event) => setWaterConsumed(event.target.value)}
+          />
+          <span className="text-[var(--text-muted)]">gal</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[1, 2, 5, 10].map((amt) => (
+            <button
+              key={amt}
+              type="button"
+              className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[30px] px-3 py-1 text-xs font-mono hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+              onClick={() => setWaterConsumed(String(amt))}
+            >
+              {amt} gal
+            </button>
+          ))}
+        </div>
       </ScaleSection>
 
       {showEggs ? (
@@ -1750,17 +1778,6 @@ function ScaleEntryCard(props) {
               +
             </button>
           </div>
-          <label className="field" style={{ maxWidth: "180px" }}>
-            <span>Water</span>
-            <input
-              min="0"
-              step="0.1"
-              type="number"
-              value={waterConsumed}
-              onChange={(event) => setWaterConsumed(event.target.value)}
-            />
-            <small className="text-[var(--text-muted)]">gal</small>
-          </label>
           <button
             className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
             type="button"
@@ -1842,17 +1859,6 @@ function ScaleEntryCard(props) {
       {showWorking ? (
         <ScaleSection title="Working Animal">
           <p className="text-[var(--text-muted)] text-xs m-0">🛡️ Guardian — no production metrics tracked</p>
-          <label className="field">
-            <span>Water consumed (gal)</span>
-            <input
-              min="0"
-              step="0.1"
-              type="number"
-              placeholder="0.0"
-              value={waterConsumed}
-              onChange={(event) => setWaterConsumed(event.target.value)}
-            />
-          </label>
         </ScaleSection>
       ) : null}
 
@@ -1868,6 +1874,38 @@ function ScaleEntryCard(props) {
           {sessionNotes.length}/500
         </span>
       </ScaleSection>
+
+      <div className="border-t border-[rgba(46,125,50,0.55)] pt-4 mt-1">
+        <button
+          type="button"
+          className="font-mono text-xs text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors flex items-center gap-1"
+          onClick={() => setShowCostDetails(!showCostDetails)}
+        >
+          {showCostDetails ? "▾" : "▸"} {showCostDetails ? "Hide" : "Show"} cost details
+        </button>
+        {showCostDetails && (
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
+              <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">lbs/bird</p>
+              <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
+                {effectiveWeight > 0 && adjustedHeadcount > 0 ? formatNumber(weightPerBird, 3) : "—"}
+              </p>
+            </div>
+            <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
+              <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">total cost</p>
+              <p className="font-mono text-sm text-[var(--accent-primary)] font-bold m-0">
+                {effectiveWeight > 0 && currentFeed ? formatMoney(costTotal) : "—"}
+              </p>
+            </div>
+            <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
+              <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">cost/bird</p>
+              <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
+                {effectiveWeight > 0 && currentFeed && adjustedHeadcount > 0 ? formatMoney(costPerBird) : "—"}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {!isDailyMode ? (
         <div className="grid gap-1">
@@ -1901,8 +1939,8 @@ function TodayLogPanel({ eventsData, onDelete }) {
       <header>
         <h2 className="display-font text-[20px] leading-none m-0">Today's Log</h2>
         <p className="text-[var(--text-muted)] font-[IBM_Plex_Mono,monospace] text-xs mt-2 m-0">
-          {formatNumber(totals.total_weight_today || 0)} lbs {"·"} {formatMoney(totals.total_cost_today || 0)}{" "}
-          {"·"} {totals.event_count || 0} events
+          {formatNumber(totals.totalWeight || 0)} lbs {"·"} {formatMoney(totals.totalCost || 0)}{" "}
+          {"·"} {totals.eventCount || 0} events
         </p>
       </header>
 
@@ -1910,7 +1948,7 @@ function TodayLogPanel({ eventsData, onDelete }) {
         <table className="border-collapse w-full min-w-[760px]">
           <thead>
             <tr>
-              {["Time", "Flock", "Feed", "Weight", "Wt/Bird", "Cost", "$/Bird", "Method", ""].map((label, i) => (
+              {["Time", "Flock", "Feed", "Weight", "Water", "Eggs", "Method", ""].map((label, i) => (
                 <th
                   key={i}
                   className="border-b border-[rgba(46,125,50,0.55)] bg-[var(--bg-elevated)] text-[var(--text-primary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left sticky top-0 z-[1]"
@@ -1925,12 +1963,11 @@ function TodayLogPanel({ eventsData, onDelete }) {
               events.map((event) => (
                 <tr key={event.id} className="group">
                   <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{formatTime(event.timestamp)}</td>
-                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{event.flock_name}</td>
-                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{event.feed_name}</td>
+                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{event.flocks?.breeds?.animal_types?.emoji || ""} {event.flocks?.name || ""}</td>
+                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{event.feed_types?.name || ""}</td>
                   <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{formatNumber(event.total_weight)} lbs</td>
-                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{formatNumber(event.weight_per_bird, 2)}</td>
-                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{formatMoney(event.cost_total)}</td>
-                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{formatMoney(event.cost_per_bird)}</td>
+                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{event.water_consumed != null ? `${event.water_consumed} gal` : "—"}</td>
+                  <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">{event.egg_count != null ? event.egg_count : "—"}</td>
                   <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">
                     <span className={[
                       "rounded-full text-[11px] font-bold py-[3px] px-[7px] uppercase",
@@ -1954,7 +1991,7 @@ function TodayLogPanel({ eventsData, onDelete }) {
               ))
             ) : (
               <tr>
-                <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left" colSpan="9">No feedings logged today</td>
+                <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left" colSpan="8">No feedings logged today</td>
               </tr>
             )}
           </tbody>
@@ -1964,12 +2001,9 @@ function TodayLogPanel({ eventsData, onDelete }) {
                 Totals
               </td>
               <td className="bg-[var(--bg-surface)] sticky bottom-0 text-[var(--text-primary)] font-bold font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left border-b border-[rgba(46,125,50,0.55)]">
-                {formatNumber(totals.total_weight_today || 0)} lbs
+                {formatNumber(totals.totalWeight || 0)} lbs
               </td>
               <td className="bg-[var(--bg-surface)] sticky bottom-0 text-[var(--text-primary)] font-bold font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left border-b border-[rgba(46,125,50,0.55)]" />
-              <td className="bg-[var(--bg-surface)] sticky bottom-0 text-[var(--text-primary)] font-bold font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left border-b border-[rgba(46,125,50,0.55)]">
-                {formatMoney(totals.total_cost_today || 0)}
-              </td>
               <td className="bg-[var(--bg-surface)] sticky bottom-0 text-[var(--text-primary)] font-bold font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left border-b border-[rgba(46,125,50,0.55)]" colSpan="3" />
             </tr>
           </tfoot>
