@@ -1,8 +1,9 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { FarmContext } from '../../context/FarmContext'
-import { CATEGORIES } from '../../components/ObservationEntry'
-import { getObservationHistory, getOpenFollowUps, resolveFollowUp } from '../../services/observationsApi'
+import { OBSERVATION_CATEGORIES } from '../../utils/animalClass'
+import ObservationCard from '../../components/ObservationCard'
+import ObservationEntry from '../../components/ObservationEntry'
+import { getObservationHistory, resolveFollowUp, deleteObservation, updateObservation } from '../../services/observationsApi'
 import { getQueue } from '../../services/scaleHouseApi'
 
 const todayStr  = () => new Date().toISOString().slice(0, 10)
@@ -14,20 +15,6 @@ function defaultRange(preset) {
   if (preset === 'week')   return { start: daysAgo(6), end: today }
   if (preset === 'month')  return { start: daysAgo(29), end: today }
   return { start: daysAgo(6), end: today }
-}
-
-function categoryEmoji(key) { return CATEGORIES.find(c => c.key === key)?.emoji || '📝' }
-function categoryLabel(key) { return CATEGORIES.find(c => c.key === key)?.label || key }
-
-function severityBorderClass(s) {
-  if (s === 'urgent')  return 'border-l-4 border-l-[var(--accent-danger)] bg-red-950/20'
-  if (s === 'concern') return 'border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20'
-  return 'border-l-4 border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]'
-}
-
-function formatTime(ts) {
-  if (!ts) return ''
-  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(ts))
 }
 
 export default function FarmLog() {
@@ -43,6 +30,7 @@ export default function FarmLog() {
   const [filterFollowUp,  setFilterFollowUp]  = useState(false)
   const [searchTerm,      setSearchTerm]      = useState('')
   const [resolvedIds,     setResolvedIds]     = useState(new Set())
+  const [editingObs,      setEditingObs]      = useState(null)
 
   useEffect(() => {
     if (!userId) return
@@ -79,6 +67,7 @@ export default function FarmLog() {
   async function handleResolve(id) {
     await resolveFollowUp(id)
     setResolvedIds(prev => new Set([...prev, id]))
+    load()
   }
 
   const displayed = useMemo(() => {
@@ -169,7 +158,7 @@ export default function FarmLog() {
             className="select select-sm font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-secondary)]"
           >
             <option value="all">All Categories</option>
-            {CATEGORIES.map(c => (
+            {OBSERVATION_CATEGORIES.map(c => (
               <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
             ))}
           </select>
@@ -242,60 +231,42 @@ export default function FarmLog() {
                 {new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               </p>
               <div className="grid gap-2">
-                {entries.map(obs => {
-                  const resolved = resolvedIds.has(obs.id) || obs.follow_up_resolved
-                  return (
-                    <div
-                      key={obs.id}
-                      className={`rounded-xl border border-[var(--border)] p-3 font-mono text-xs ${severityBorderClass(obs.severity)}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span>{categoryEmoji(obs.category)}</span>
-                            <span className="font-bold text-[var(--text-primary)]">{categoryLabel(obs.category)}</span>
-                            <span className="text-[var(--text-muted)]">·</span>
-                            <span className="text-[var(--text-secondary)]">
-                              {obs.flocks?.breeds?.animal_types?.emoji} {obs.flocks?.name}
-                            </span>
-                            {obs.animals && (
-                              <span className="text-[var(--accent-primary)]">· {obs.animals.identifier}</span>
-                            )}
-                            {obs.severity !== 'normal' && (
-                              <span className={`badge badge-xs border-none ${obs.severity === 'urgent' ? 'bg-[var(--accent-danger)] text-white' : 'bg-[var(--accent-warn)] text-[var(--bg-base)]'}`}>
-                                {obs.severity.toUpperCase()}
-                              </span>
-                            )}
-                            {obs.follow_up_needed && !resolved && (
-                              <span className="badge badge-xs bg-[var(--accent-warn)] text-[var(--bg-base)] border-none">follow-up</span>
-                            )}
-                            {resolved && obs.follow_up_needed && (
-                              <span className="badge badge-xs bg-[var(--bg-elevated)] text-[var(--text-muted)] border-none">resolved ✓</span>
-                            )}
-                          </div>
-                          {obs.detail && (
-                            <p className="text-[var(--text-secondary)] leading-relaxed m-0">{obs.detail}</p>
-                          )}
-                          <p className="text-[var(--text-muted)] mt-1 m-0">{formatTime(obs.created_at)}</p>
-                        </div>
-                        {obs.follow_up_needed && !resolved && (
-                          <button
-                            type="button"
-                            onClick={() => handleResolve(obs.id)}
-                            className="btn btn-xs font-mono shrink-0 bg-[var(--accent-primary)] text-[var(--bg-base)] border-none"
-                          >
-                            Resolve ✓
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {entries.map(obs => (
+                  <ObservationCard
+                    key={obs.id}
+                    obs={{ ...obs, follow_up_resolved: obs.follow_up_resolved || resolvedIds.has(obs.id) }}
+                    showFlock={true}
+                    onEdit={(o) => setEditingObs(o)}
+                    onDelete={async (obsId) => {
+                      await deleteObservation(obsId)
+                      load()
+                    }}
+                    onResolve={async (obsId) => handleResolve(obsId)}
+                  />
+                ))}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Edit modal */}
+      <dialog className={`modal ${editingObs ? 'modal-open' : ''}`}>
+        <div className="modal-box bg-[var(--bg-surface)] border border-[var(--border)]">
+          <h3 className="font-mono text-lg font-bold text-[var(--text-primary)] mb-4">Edit Observation</h3>
+          {editingObs && (
+            <ObservationEntry
+              flockId={editingObs.flock_id}
+              animals={[]}
+              editingObs={editingObs}
+              userId={userId}
+              onSave={() => { setEditingObs(null); load() }}
+              onCancel={() => setEditingObs(null)}
+            />
+          )}
+        </div>
+        <div className="modal-backdrop" onClick={() => setEditingObs(null)} />
+      </dialog>
     </section>
   )
 }

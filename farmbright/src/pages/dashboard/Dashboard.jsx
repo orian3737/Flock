@@ -6,7 +6,8 @@ import { getAnimalEmoji } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
 import { dismissInventoryAlert, getDashboardOverview } from "../../services/dashboardApi";
 import { getTodayObservations, getOpenFollowUps, resolveFollowUp } from "../../services/observationsApi";
-import { CATEGORIES } from "../../components/ObservationEntry";
+import { OBSERVATION_CATEGORIES } from "../../utils/animalClass";
+import ObservationCard from "../../components/ObservationCard";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" });
 const numberFormatter = new Intl.NumberFormat("en-US");
@@ -338,7 +339,7 @@ function Dashboard() {
           </div>
           <div className="grid gap-2">
             {followUps.map((obs) => {
-              const cat = CATEGORIES.find((c) => c.key === obs.category);
+              const cat = OBSERVATION_CATEGORIES.find((c) => c.key === obs.category);
               return (
                 <div key={obs.id} className="flex items-start justify-between gap-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border)] p-3">
                   <div className="flex-1 min-w-0">
@@ -390,39 +391,13 @@ function Dashboard() {
             </button>
           </div>
           <div className="grid gap-2">
-            {todayObs.map((obs) => {
-              const cat = CATEGORIES.find((c) => c.key === obs.category);
-              return (
-                <div
-                  key={obs.id}
-                  className={`flex items-start gap-3 rounded-lg border border-[var(--border)] p-3 font-mono text-xs ${
-                    obs.severity === "urgent"
-                      ? "border-l-4 border-l-[var(--accent-danger)] bg-red-950/20 animate-pulse"
-                      : obs.severity === "concern"
-                      ? "border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20"
-                      : "border-l-4 border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]"
-                  }`}
-                >
-                  <span className="text-lg shrink-0">{cat?.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="font-bold text-[var(--text-primary)]">{cat?.label}</span>
-                      <span className="text-[var(--text-muted)]">
-                        {obs.flocks?.breeds?.animal_types?.emoji} {obs.flocks?.name}
-                      </span>
-                      {obs.severity !== "normal" && (
-                        <span className={`badge badge-xs border-none ${obs.severity === "urgent" ? "bg-[var(--accent-danger)] text-white" : "bg-[var(--accent-warn)] text-[var(--bg-base)]"}`}>
-                          {obs.severity.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    {obs.detail && (
-                      <p className="text-[var(--text-secondary)] leading-relaxed m-0">{obs.detail}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {todayObs.map((obs) => (
+              <ObservationCard
+                key={obs.id}
+                obs={obs}
+                showFlock={true}
+              />
+            ))}
           </div>
         </section>
       )}

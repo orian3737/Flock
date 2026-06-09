@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { getAnimalDetail, logWeight, updateAnimal } from '../services/observationsApi'
-import { CATEGORIES } from './ObservationEntry'
+import { OBSERVATION_CATEGORIES } from '../utils/animalClass'
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
-function categoryEmoji(key) { return CATEGORIES.find(c => c.key === key)?.emoji || '📝' }
-function categoryLabel(key) { return CATEGORIES.find(c => c.key === key)?.label || key }
+function categoryEmoji(key) { return OBSERVATION_CATEGORIES.find(c => c.key === key)?.emoji || '📝' }
+function categoryLabel(key) { return OBSERVATION_CATEGORIES.find(c => c.key === key)?.label || key }
 
 const LOG_TYPE_LABELS = {
   observation: 'Observation', treatment: 'Treatment',

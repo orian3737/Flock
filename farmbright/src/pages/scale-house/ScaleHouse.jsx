@@ -15,8 +15,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
-import ObservationEntry, { CATEGORIES } from "../../components/ObservationEntry";
-import { getFlockAnimals } from "../../services/observationsApi";
+import ObservationEntry from "../../components/ObservationEntry";
+import ObservationCard from "../../components/ObservationCard";
+import { getFlockAnimals, deleteObservation, updateObservation } from "../../services/observationsApi";
 import {
   deleteAllTodayFeedings,
   deleteFeedingEvent,
@@ -134,6 +135,7 @@ function ScaleHouse() {
   const [flockAnimals,   setFlockAnimals]   = useState([]);
   const [observations,   setObservations]   = useState([]);
   const [showAddObs,     setShowAddObs]     = useState(false);
+  const [editingObs,     setEditingObs]     = useState(null);
   const [sessionData, setSessionData] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [panelDate, setPanelDate] = useState(todayString());
@@ -279,6 +281,7 @@ function ScaleHouse() {
   useEffect(() => {
     setObservations([]);
     setShowAddObs(false);
+    setEditingObs(null);
     if (currentFlock?.individual_tracking_enabled && currentFlock.flock_id) {
       getFlockAnimals(currentFlock.flock_id).then(setFlockAnimals).catch(() => setFlockAnimals([]));
     } else {
@@ -309,6 +312,7 @@ function ScaleHouse() {
     setShowCostDetails(false);
     setObservations([]);
     setShowAddObs(false);
+    setEditingObs(null);
   }
 
   function handleSkip() {
@@ -598,6 +602,9 @@ function ScaleHouse() {
           setObservations={setObservations}
           showAddObs={showAddObs}
           setShowAddObs={setShowAddObs}
+          editingObs={editingObs}
+          setEditingObs={setEditingObs}
+          userId={userId}
           setAutoCapture={setAutoCapture}
           setCasualtyNotes={setCasualtyNotes}
           setEggCount={setEggCount}
@@ -1475,6 +1482,9 @@ function ScaleEntryCard(props) {
     setObservations,
     showAddObs,
     setShowAddObs,
+    editingObs,
+    setEditingObs,
+    userId,
     setAutoCapture,
     setCasualtyNotes,
     setEggCount,
@@ -1893,34 +1903,44 @@ function ScaleEntryCard(props) {
           )}
         </div>
 
-        {observations.map((obs, i) => (
-          <div
-            key={i}
-            className={`p-3 rounded-xl font-mono text-xs border border-[var(--border)] ${
-              obs.severity === 'urgent'
-                ? 'border-l-4 border-l-[var(--accent-danger)] bg-red-950/20'
-                : obs.severity === 'concern'
-                ? 'border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20'
-                : 'border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]'
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <span>{CATEGORIES.find(c => c.key === obs.category)?.emoji}</span>
-              <span className="font-bold text-[var(--text-primary)]">{CATEGORIES.find(c => c.key === obs.category)?.label}</span>
-              {obs.animal_id && obs.animal_identifier && (
-                <span className="text-[var(--accent-primary)]">· {obs.animal_identifier}</span>
-              )}
-              {obs.severity !== 'normal' && (
-                <span className={`badge badge-xs border-none ${obs.severity === 'urgent' ? 'bg-[var(--accent-danger)] text-white' : 'bg-[var(--accent-warn)] text-[var(--bg-base)]'}`}>
-                  {obs.severity.toUpperCase()}
-                </span>
-              )}
-            </div>
-            {obs.detail && <p className="text-[var(--text-secondary)] leading-relaxed m-0">{obs.detail}</p>}
+        {editingObs && (
+          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4 mb-1">
+            <ObservationEntry
+              compact={true}
+              flockId={currentFlock?.flock_id}
+              animals={flockAnimals}
+              editingObs={editingObs}
+              userId={userId}
+              onSave={(updated) => {
+                const animal = flockAnimals.find(a => a.id === updated.animal_id);
+                setObservations(prev =>
+                  prev.map(o => o.id === updated.id ? {
+                    ...updated,
+                    animals: animal ? { id: animal.id, identifier: animal.identifier } : null,
+                  } : o)
+                );
+                setEditingObs(null);
+              }}
+              onCancel={() => setEditingObs(null)}
+            />
           </div>
+        )}
+
+        {observations.map((obs) => (
+          <ObservationCard
+            key={obs.id}
+            obs={obs}
+            showFlock={false}
+            compact={true}
+            onEdit={(o) => { setShowAddObs(false); setEditingObs(o); }}
+            onDelete={async (obsId) => {
+              await deleteObservation(obsId);
+              setObservations(prev => prev.filter(o => o.id !== obsId));
+            }}
+          />
         ))}
 
-        {!showAddObs ? (
+        {!editingObs && !showAddObs ? (
           <button
             type="button"
             onClick={() => setShowAddObs(true)}
@@ -1928,24 +1948,25 @@ function ScaleEntryCard(props) {
           >
             + Add observation
           </button>
-        ) : (
+        ) : !editingObs ? (
           <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
             <ObservationEntry
               compact={true}
               flockId={currentFlock?.flock_id}
-              flockName={currentFlock?.name}
               animals={flockAnimals}
+              userId={userId}
               onSave={(obs) => {
+                const animal = flockAnimals.find(a => a.id === obs.animal_id);
                 setObservations(prev => [...prev, {
                   ...obs,
-                  animal_identifier: flockAnimals.find(a => a.id === obs.animal_id)?.identifier,
-                }])
-                setShowAddObs(false)
+                  animals: animal ? { id: animal.id, identifier: animal.identifier } : null,
+                }]);
+                setShowAddObs(false);
               }}
               onCancel={() => setShowAddObs(false)}
             />
           </div>
-        )}
+        ) : null}
       </ScaleSection>
 
       <div className="border-t border-[rgba(46,125,50,0.55)] pt-4 mt-1">

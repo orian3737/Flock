@@ -10,7 +10,8 @@ export async function logObservation(payload) {
       animal_id:          payload.animal_id || null,
       date:               payload.date,
       category:           payload.category,
-      detail:             payload.detail || null,
+      selected_options:   payload.selected_options || [],
+      detail:             payload.detail?.trim() || null,
       severity:           payload.severity || 'normal',
       follow_up_needed:   payload.follow_up_needed || false,
       follow_up_resolved: false,
@@ -21,12 +22,17 @@ export async function logObservation(payload) {
   if (obsErr) throw obsErr
 
   if (payload.animal_id && ['physical', 'behavior'].includes(payload.category)) {
+    const description = [
+      ...(payload.selected_options || []),
+      payload.detail,
+    ].filter(Boolean).join(' · ')
+
     await supabase.from('animal_health_logs').insert({
       animal_id:      payload.animal_id,
       observation_id: obs.id,
       date:           payload.date,
       log_type:       'observation',
-      description:    payload.detail || payload.category,
+      description:    description || payload.category,
       resolved:       false,
     })
   }
@@ -40,7 +46,7 @@ export async function getTodayObservations(userId) {
     .from('observation_logs')
     .select(`
       id, flock_id, animal_id, date, category,
-      detail, severity, follow_up_needed,
+      selected_options, detail, severity, follow_up_needed,
       follow_up_resolved, created_at,
       flocks (
         id, name,
@@ -64,7 +70,7 @@ export async function getObservationHistory(userId, startDate, endDate, filters 
     .from('observation_logs')
     .select(`
       id, flock_id, animal_id, date, category,
-      detail, severity, follow_up_needed,
+      selected_options, detail, severity, follow_up_needed,
       follow_up_resolved, created_at,
       flocks (
         id, name,
@@ -103,11 +109,33 @@ export async function resolveFollowUp(observationId) {
   return data
 }
 
-export async function deleteObservation(observationId) {
+export async function updateObservation(obsId, updates) {
+  const { data, error } = await supabase
+    .from('observation_logs')
+    .update({
+      category:         updates.category,
+      selected_options: updates.selected_options || [],
+      detail:           updates.detail?.trim() || null,
+      severity:         updates.severity,
+      follow_up_needed: updates.follow_up_needed,
+    })
+    .eq('id', obsId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteObservation(obsId) {
+  await supabase
+    .from('animal_health_logs')
+    .delete()
+    .eq('observation_id', obsId)
+
   const { error } = await supabase
     .from('observation_logs')
     .delete()
-    .eq('id', observationId)
+    .eq('id', obsId)
   if (error) throw error
   return true
 }
@@ -117,7 +145,8 @@ export async function getOpenFollowUps(userId) {
     .from('observation_logs')
     .select(`
       id, flock_id, animal_id, date, category,
-      detail, severity, created_at,
+      selected_options, detail, severity, created_at,
+      follow_up_needed, follow_up_resolved,
       flocks ( id, name,
         breeds ( name,
           animal_types ( name, emoji )
@@ -208,7 +237,7 @@ export async function getAnimalDetail(animalId) {
         resolved, resolved_at, observation_id
       ),
       observation_logs (
-        id, date, category, detail, severity,
+        id, date, category, selected_options, detail, severity,
         follow_up_needed, follow_up_resolved
       )
     `)

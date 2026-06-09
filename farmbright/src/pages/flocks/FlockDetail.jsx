@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import InlineFeedback from "../../components/InlineFeedback";
-import ObservationEntry, { CATEGORIES } from "../../components/ObservationEntry";
+import ObservationEntry from "../../components/ObservationEntry";
+import ObservationCard from "../../components/ObservationCard";
 import AnimalDrawer from "../../components/AnimalDrawer";
+import { FarmContext } from "../../context/FarmContext";
 import { getFlockDetail, logCasualty, logProduction } from "../../services/flocksApi";
 import { getFlockYoungSales, logYoungSale } from "../../services/revenueApi";
-import { getFlockAnimals, getObservationHistory, enableFlockTracking, createAnimal } from "../../services/observationsApi";
+import { getFlockAnimals, getObservationHistory, enableFlockTracking, createAnimal, deleteObservation, resolveFollowUp } from "../../services/observationsApi";
 import { supabase } from "../../services/supabaseClient";
 import { getClassConfig } from "../../utils/animalClass";
 import { useAnimalClass } from "../../hooks/useAnimalClass";
@@ -17,6 +19,7 @@ const todayString = () => new Date().toISOString().slice(0, 10);
 function FlockDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { userId } = useContext(FarmContext);
   const [detail, setDetail] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,7 @@ function FlockDetail() {
   const [addAnimalForm, setAddAnimalForm] = useState({ identifier: '', sex: 'female', source: 'hatched', date_of_birth: null });
   const [savingAnimal, setSavingAnimal] = useState(false);
   const [enablingTracking, setEnablingTracking] = useState(false);
+  const [editingObs,       setEditingObs]       = useState(null);
 
   const flock = detail?.flock;
   const stats = detail?.stats || {};
@@ -421,7 +425,18 @@ function FlockDetail() {
         <div className="p-4">
           {detailTab === 'observations' && (
             <div className="grid gap-3">
-              {!showObsEntry ? (
+              {editingObs ? (
+                <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                  <ObservationEntry
+                    flockId={Number(id)}
+                    animals={flockAnimals}
+                    editingObs={editingObs}
+                    userId={userId}
+                    onSave={async () => { setEditingObs(null); await reloadObs(); }}
+                    onCancel={() => setEditingObs(null)}
+                  />
+                </div>
+              ) : !showObsEntry ? (
                 <button
                   type="button"
                   onClick={() => setShowObsEntry(true)}
@@ -432,45 +447,28 @@ function FlockDetail() {
               ) : (
                 <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
                   <ObservationEntry
-                    compact={false}
                     flockId={Number(id)}
-                    flockName={flock.name}
                     animals={flockAnimals}
+                    userId={userId}
                     onSave={async () => { setShowObsEntry(false); await reloadObs(); }}
                     onCancel={() => setShowObsEntry(false)}
                   />
                 </div>
               )}
-              {flockObs.length === 0 ? (
+              {flockObs.length === 0 && !showObsEntry && !editingObs ? (
                 <p className="font-mono text-xs text-[var(--text-muted)] text-center py-4 m-0">No observations in the last 90 days</p>
               ) : (
-                <div className="grid gap-2">
-                  {flockObs.map((obs) => {
-                    const cat = CATEGORIES.find((c) => c.key === obs.category);
-                    return (
-                      <div
-                        key={obs.id}
-                        className={`rounded-xl border border-[var(--border)] p-3 font-mono text-xs ${
-                          obs.severity === 'urgent' ? 'border-l-4 border-l-[var(--accent-danger)] bg-red-950/20'
-                          : obs.severity === 'concern' ? 'border-l-4 border-l-[var(--accent-warn)] bg-amber-950/20'
-                          : 'border-l-4 border-l-[var(--accent-primary)] bg-[var(--bg-elevated)]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span>{cat?.emoji}</span>
-                          <span className="font-bold text-[var(--text-primary)]">{cat?.label}</span>
-                          {obs.animals && <span className="text-[var(--accent-primary)]">· {obs.animals.identifier}</span>}
-                          {obs.severity !== 'normal' && (
-                            <span className={`badge badge-xs border-none ${obs.severity === 'urgent' ? 'bg-[var(--accent-danger)] text-white' : 'bg-[var(--accent-warn)] text-[var(--bg-base)]'}`}>
-                              {obs.severity.toUpperCase()}
-                            </span>
-                          )}
-                          <span className="text-[var(--text-muted)] ml-auto">{obs.date}</span>
-                        </div>
-                        {obs.detail && <p className="text-[var(--text-secondary)] m-0">{obs.detail}</p>}
-                      </div>
-                    );
-                  })}
+                <div className="grid gap-1">
+                  {flockObs.map((obs) => (
+                    <ObservationCard
+                      key={obs.id}
+                      obs={obs}
+                      showFlock={false}
+                      onEdit={(o) => { setShowObsEntry(false); setEditingObs(o); }}
+                      onDelete={async (obsId) => { await deleteObservation(obsId); await reloadObs(); }}
+                      onResolve={async (obsId) => { await resolveFollowUp(obsId); await reloadObs(); }}
+                    />
+                  ))}
                 </div>
               )}
             </div>

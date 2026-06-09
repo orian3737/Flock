@@ -132,3 +132,64 @@ export function buildAnimalTypePayload(animalClassId, {
 
 // Legacy alias — keep for any callers not yet updated
 export { buildAnimalTypePayload as buildCustomSpeciesPayload };
+
+export const OBSERVATION_CATEGORIES = [
+  { key: 'feed_intake',  label: 'Feed Intake',  emoji: '🍽' },
+  { key: 'water_intake', label: 'Water Intake', emoji: '💧' },
+  { key: 'behavior',     label: 'Behavior',     emoji: '🏃' },
+  { key: 'physical',     label: 'Physical',     emoji: '👁' },
+  { key: 'environment',  label: 'Environment',  emoji: '🏠' },
+  { key: 'general',      label: 'General',      emoji: '📝' },
+]
+
+export const OBSERVATION_OPTIONS = {
+  feed_intake: [
+    'Eating well',
+    'Reduced intake',
+    'Not eating',
+    'Eating aggressively',
+    'Selective eating',
+    'Competition at feeder',
+  ],
+  water_intake: [
+    'Drinking normally',
+    'Reduced drinking',
+    'Not drinking',
+    'Excessive drinking',
+    'Water source issue',
+  ],
+  behavior: [
+    'Active and alert',
+    'Lethargic',
+    'Isolating from group',
+    'Aggressive toward others',
+    'Restless / pacing',
+    'Broody',
+    'Vocalizing unusually',
+  ],
+  physical: [
+    'Appears healthy',
+    'Limping',
+    'Injury noted',
+    'Feather loss',
+    'Swelling',
+    'Discharge (eye/nose)',
+    'Weight loss visible',
+    'Labored breathing',
+  ],
+  environment: [
+    'Pen clean and dry',
+    'Water line needs cleaning',
+    'Bedding needs changing',
+    'Equipment issue',
+    'Predator sign',
+    'Escape risk noted',
+    'Overcrowding',
+  ],
+  general: [
+    'All good',
+    'Routine check',
+    'Weather impact noted',
+    'Seasonal behavior',
+  ],
+}
