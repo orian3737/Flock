@@ -23,6 +23,7 @@ export async function getQueue() {
         `id, name, designation, pen_name, current_headcount,
          breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
+           id, feed_type_id,
            feed_types ( id, name, unit, cost_per_unit, current_on_hand, par_level, bag_weight, bag_price )
          )`
       )
@@ -59,17 +60,16 @@ export async function getQueue() {
     pen_name: flock.pen_name,
     current_headcount: flock.current_headcount,
     assigned_feeds: (flock.feed_assignments || [])
-      .map((a) => a.feed_types)
-      .filter(Boolean)
-      .map((ft) => ({
-        feed_type_id: ft.id,
-        name: ft.name,
-        unit: ft.unit,
-        cost_per_unit: ft.cost_per_unit,
-        cost_per_lb: ft.cost_per_unit,
-        bag_weight: ft.bag_weight,
-        bag_price: ft.bag_price,
-        current_on_hand: ft.current_on_hand,
+      .filter((a) => a.feed_types)
+      .map((a) => ({
+        feed_type_id: a.feed_type_id,
+        name: a.feed_types.name,
+        unit: a.feed_types.unit,
+        cost_per_unit: a.feed_types.cost_per_unit,
+        cost_per_lb: a.feed_types.cost_per_unit,
+        bag_weight: a.feed_types.bag_weight,
+        bag_price: a.feed_types.bag_price,
+        current_on_hand: a.feed_types.current_on_hand,
       })),
     fed_today: todayByFlock.has(flock.id),
     fed_at: todayByFlock.get(flock.id) || null,
