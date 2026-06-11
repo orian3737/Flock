@@ -1,7 +1,15 @@
 import { supabase } from './supabaseClient';
 
+function getLocalDateString() {
+  const now = new Date();
+  const year  = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day   = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export async function getTodaySession(date = null) {
-  const sessionDate = date || new Date().toISOString().split('T')[0];
+  const sessionDate = date || getLocalDateString();
 
   const [feedResult, prodResult, casResult] = await Promise.all([
     supabase

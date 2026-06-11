@@ -4,6 +4,14 @@ function fmt(error, fallback) {
   return new Error(error?.message || fallback);
 }
 
+function getLocalDateString() {
+  const now = new Date();
+  const year  = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day   = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function feedStatus(ft) {
   if (!ft) return "ok";
   if (ft.current_on_hand <= ft.par_level) return "critical";
@@ -14,7 +22,7 @@ function feedStatus(ft) {
 // ── Queue ─────────────────────────────────────────────────────
 
 export async function getQueue() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   const [flocksResult, todayFeedingResult] = await Promise.all([
     supabase
@@ -47,6 +55,7 @@ export async function getQueue() {
   return (flocksResult.data || []).map((flock) => ({
     flock_id: flock.id,
     name: flock.name,
+    breeds: flock.breeds,
     breed_name: flock.breeds?.name || "",
     animal_class_name: flock.breeds?.animal_types?.animal_classes?.name || "",
     class_type: flock.breeds?.animal_types?.animal_classes?.class_type || 'other',
@@ -79,7 +88,7 @@ export async function getQueue() {
 // ── Queue summary ─────────────────────────────────────────────
 
 export async function getQueueSummary() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   const [flocksResult, feedingResult, productionResult, casualtyResult] = await Promise.all([
     supabase.from("flocks").select("id, current_headcount"),
@@ -136,7 +145,7 @@ export async function getQueueSummary() {
 // as sequential Data API calls. Triggers handle all side effects.
 
 export async function logSession({ flock_id, feeding, production, headcount_change, casualty_notes, date }) {
-  const targetDate = date || new Date().toISOString().slice(0, 10);
+  const targetDate = date || getLocalDateString();
   const results = {};
 
   if (headcount_change && headcount_change !== 0) {
@@ -213,7 +222,7 @@ export async function logSession({ flock_id, feeding, production, headcount_chan
 // ── Today events ──────────────────────────────────────────────
 
 export async function getTodayEvents() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   const [eventsResult, flocksResult] = await Promise.all([
     supabase
