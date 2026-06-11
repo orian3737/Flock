@@ -136,17 +136,17 @@ export default function ObservationEntry({
           </div>
 
           {/* Preset option pills */}
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
             {OBSERVATION_OPTIONS[category]?.map(opt => (
               <button
                 key={opt}
                 type="button"
                 onClick={() => toggleOption(opt)}
-                className={`btn btn-sm font-mono transition-all ${
+                className={
                   selectedOptions.includes(opt)
-                    ? 'bg-[var(--accent-primary)] text-[var(--bg-base)] border-none font-bold'
-                    : 'btn-ghost border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
-                }`}
+                    ? 'btn font-mono text-sm font-bold bg-[var(--accent-primary)] text-[var(--bg-base)] border-none rounded-xl px-4 py-3 h-auto min-h-[48px] leading-snug text-left'
+                    : 'btn btn-ghost font-mono text-sm border-2 border-[var(--border)] text-[var(--text-secondary)] rounded-xl px-4 py-3 h-auto min-h-[48px] leading-snug text-left hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)] transition-all'
+                }
               >
                 {selectedOptions.includes(opt) && '✓ '}
                 {opt}
