@@ -8,11 +8,9 @@ import InlineFeedback from "../../components/InlineFeedback";
 import { supabase } from "../../services/supabaseClient";
 import {
   createBreed,
-  createFeedAssignment,
   deleteAnimalClass,
   deleteAnimalType,
   deleteBreed,
-  deleteFeedAssignment,
   deleteFeedType,
   deleteFlock,
   getOnboardingSummary,
@@ -42,6 +40,9 @@ function FarmSetup() {
   const [newBreedName, setNewBreedName] = useState({});
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [newFeed, setNewFeed] = useState({ name: '', unit: 'lbs', bag_weight: '', bag_price: '', on_hand: '0', par_level: '50' });
+  const [assignModalFlockId, setAssignModalFlockId] = useState(null);
+  const [assignModalFlock, setAssignModalFlock] = useState(null);
+  const [selectedFeedIds, setSelectedFeedIds] = useState([]);
 
   async function loadSummary() {
     if (!profile?.id) return;
@@ -124,26 +125,6 @@ function FarmSetup() {
     }
   }
 
-  async function handleFeedAssign(flockId, feedTypeId) {
-    setFeedback(null);
-    try {
-      await createFeedAssignment({ flock_id: flockId, feed_type_id: feedTypeId });
-      if (await loadSummary()) setFeedback({ type: 'success', message: 'Feed assigned.' });
-    } catch (err) {
-      setFeedback({ type: 'error', message: formatError(err) });
-    }
-  }
-
-  async function handleFeedUnassign(assignmentId) {
-    setFeedback(null);
-    try {
-      await deleteFeedAssignment(assignmentId);
-      if (await loadSummary()) setFeedback({ type: 'success', message: 'Feed removed.' });
-    } catch (err) {
-      setFeedback({ type: 'error', message: formatError(err) });
-    }
-  }
-
   async function handleFlagToggle(animalTypeId, flagKey, newValue) {
     setFeedback(null);
     try {
@@ -211,6 +192,26 @@ function FarmSetup() {
       if (error) throw error;
       setNewFeed({ name: '', unit: 'lbs', bag_weight: '', bag_price: '', on_hand: '0', par_level: '50' });
       if (await loadSummary()) setFeedback({ type: 'success', message: 'Feed type added.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: formatError(err) });
+    }
+  }
+
+  async function handleSaveFeedAssignments() {
+    const flockId = assignModalFlockId;
+    setFeedback(null);
+    try {
+      const { error: delErr } = await supabase.from('feed_assignments').delete().eq('flock_id', flockId);
+      if (delErr) throw delErr;
+      if (selectedFeedIds.length > 0) {
+        const { error: insErr } = await supabase.from('feed_assignments').insert(
+          selectedFeedIds.map(feedId => ({ flock_id: flockId, feed_type_id: feedId }))
+        );
+        if (insErr) throw insErr;
+      }
+      setAssignModalFlockId(null);
+      setAssignModalFlock(null);
+      if (await loadSummary()) setFeedback({ type: 'success', message: 'Feeds updated.' });
     } catch (err) {
       setFeedback({ type: 'error', message: formatError(err) });
     }
@@ -376,13 +377,16 @@ function FarmSetup() {
                                 feedTypes={summary.feed_types}
                                 flock={flock}
                                 key={flock.id}
-                                onAssign={(feedTypeId) => handleFeedAssign(flock.id, feedTypeId)}
                                 onCancel={cancelEdit}
                                 onChange={updateDraft}
                                 onDelete={() => deleteItem("flock", flock.id)}
                                 onEdit={() => beginEdit("flock", flock)}
+                                onOpenAssignModal={(fl) => {
+                                  setAssignModalFlockId(fl.id);
+                                  setAssignModalFlock(fl);
+                                  setSelectedFeedIds(fl.feed_assignments?.map(fa => fa.feed_type_id) || []);
+                                }}
                                 onSave={() => saveEdit("flock", flock.id)}
-                                onUnassign={handleFeedUnassign}
                               />
                             ))}
                           </div>
@@ -444,44 +448,66 @@ function FarmSetup() {
             <strong className="display-font text-[28px] leading-none text-[#e8f5e9]">Feed Types</strong>
           </div>
           <div className="settings-panel-body">
-            <div className="settings-edit-card" style={{ borderStyle: 'dashed', marginBottom: '8px' }}>
-              <p className="font-mono text-[11px] text-[var(--text-muted)] uppercase tracking-wide mb-3">+ Add Feed Type</p>
-              <div className="settings-edit-grid feed-type-grid">
-                <label className="field">
-                  <span>Name</span>
-                  <input
-                    placeholder="e.g. Layer Pellets"
-                    value={newFeed.name}
-                    onChange={e => setNewFeed(f => ({ ...f, name: e.target.value }))}
-                  />
+            <div className="bg-[var(--bg-surface)] rounded-xl border border-dashed border-[var(--border)] p-5 mb-6">
+              <p className="font-mono text-xs font-bold text-[var(--accent-primary)] uppercase tracking-wider mb-4">+ Add Feed Type</p>
+
+              <div className="form-control mb-3">
+                <label className="label pb-1">
+                  <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Feed Name</span>
                 </label>
-                <label className="field">
-                  <span>Unit</span>
-                  <select value={newFeed.unit} onChange={e => setNewFeed(f => ({ ...f, unit: e.target.value }))}>
+                <input
+                  type="text"
+                  placeholder="e.g. Layer Pellets 16%"
+                  value={newFeed.name}
+                  onChange={e => setNewFeed(f => ({ ...f, name: e.target.value }))}
+                  className="input input-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)] w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="form-control">
+                  <label className="label pb-1">
+                    <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Unit</span>
+                  </label>
+                  <select
+                    value={newFeed.unit}
+                    onChange={e => setNewFeed(f => ({ ...f, unit: e.target.value }))}
+                    className="select select-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)] w-full"
+                  >
                     <option value="lbs">lbs</option>
                     <option value="kg">kg</option>
                   </select>
-                </label>
-                <label className="field">
-                  <span>Bag weight</span>
+                </div>
+                <div className="form-control">
+                  <label className="label pb-1">
+                    <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Bag Weight</span>
+                  </label>
                   <input
-                    min="0" step="0.01" type="number"
-                    placeholder="50"
+                    type="number" min="0" step="0.01" placeholder="50"
                     value={newFeed.bag_weight}
                     onChange={e => setNewFeed(f => ({ ...f, bag_weight: e.target.value }))}
+                    className="input input-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)] w-full"
                   />
-                </label>
-                <label className="field">
-                  <span>Bag price ($)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="form-control">
+                  <label className="label pb-1">
+                    <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Bag Price ($)</span>
+                  </label>
                   <input
-                    min="0" step="0.01" type="number"
-                    placeholder="0.00"
+                    type="number" min="0" step="0.01" placeholder="0.00"
                     value={newFeed.bag_price}
                     onChange={e => setNewFeed(f => ({ ...f, bag_price: e.target.value }))}
+                    className="input input-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)] w-full"
                   />
-                </label>
-                <label className="field">
-                  <span>Cost/{newFeed.unit}</span>
+                </div>
+                <div className="form-control">
+                  <label className="label pb-1">
+                    <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Cost/{newFeed.unit}</span>
+                    <span className="label-text-alt font-mono text-[10px] text-[var(--text-muted)]">Auto-calculated</span>
+                  </label>
                   <input
                     disabled
                     value={
@@ -489,32 +515,44 @@ function FarmSetup() {
                         ? (parseFloat(newFeed.bag_price) / parseFloat(newFeed.bag_weight)).toFixed(4)
                         : '—'
                     }
+                    className="input input-bordered font-mono bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-muted)] w-full"
                   />
-                </label>
-                <label className="field">
-                  <span>On hand</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="form-control">
+                  <label className="label pb-1">
+                    <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Current Stock</span>
+                  </label>
                   <input
-                    min="0" step="0.01" type="number"
+                    type="number" min="0" step="0.01"
                     value={newFeed.on_hand}
                     onChange={e => setNewFeed(f => ({ ...f, on_hand: e.target.value }))}
+                    className="input input-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)] w-full"
                   />
-                </label>
-                <label className="field">
-                  <span>Par level</span>
+                </div>
+                <div className="form-control">
+                  <label className="label pb-1">
+                    <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Par Level</span>
+                    <span className="label-text-alt font-mono text-[10px] text-[var(--text-muted)]">Alert when below</span>
+                  </label>
                   <input
-                    min="0" step="0.01" type="number"
+                    type="number" min="0" step="0.01"
                     value={newFeed.par_level}
                     onChange={e => setNewFeed(f => ({ ...f, par_level: e.target.value }))}
+                    className="input input-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)] w-full"
                   />
-                </label>
+                </div>
               </div>
+
               <button
                 type="button"
                 disabled={!newFeed.name.trim() || !newFeed.bag_weight || !newFeed.bag_price}
                 onClick={handleAddFeedType}
-                className="primary-button mt-3 disabled:opacity-40"
+                className="btn w-full font-mono font-bold bg-[var(--accent-primary)] text-[var(--bg-base)] border-none disabled:opacity-40"
               >
-                <Plus size={14} /> Add Feed Type
+                + Add Feed Type
               </button>
             </div>
 
@@ -536,6 +574,17 @@ function FarmSetup() {
           </div>
         </section>
       </div>
+
+      {assignModalFlockId && (
+        <FeedAssignModal
+          flock={assignModalFlock}
+          feedTypes={summary.feed_types}
+          selectedFeedIds={selectedFeedIds}
+          setSelectedFeedIds={setSelectedFeedIds}
+          onSave={handleSaveFeedAssignments}
+          onClose={() => { setAssignModalFlockId(null); setAssignModalFlock(null); }}
+        />
+      )}
     </section>
   );
 }
@@ -563,10 +612,8 @@ function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
   );
 }
 
-function FlockEditor({ draft, editing, feedTypes, flock, onAssign, onCancel, onChange, onDelete, onEdit, onSave, onUnassign }) {
+function FlockEditor({ draft, editing, feedTypes, flock, onCancel, onChange, onDelete, onEdit, onSave, onOpenAssignModal }) {
   const source = editing ? draft : flock;
-  const assignedFeeds = flock.feed_assignments || [];
-  const [showFeedModal, setShowFeedModal] = useState(false);
   return (
     <div className="settings-edit-card">
       <div className="settings-edit-grid">
@@ -590,55 +637,34 @@ function FlockEditor({ draft, editing, feedTypes, flock, onAssign, onCancel, onC
         </label>
       </div>
 
-      <div className="mt-2">
+      <div className="mt-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-[11px] text-[var(--text-muted)] uppercase tracking-wide">Assigned Feeds</span>
+          <span className="font-mono text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Assigned Feeds</span>
           <button
             type="button"
-            onClick={() => setShowFeedModal(true)}
+            onClick={() => onOpenAssignModal(flock)}
             className="font-mono text-xs text-[var(--accent-primary)] hover:underline"
           >
             Manage →
           </button>
         </div>
-        {assignedFeeds.length > 0 ? (
+        {flock.feed_assignments?.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {assignedFeeds.map(a => {
-              const feedName = (feedTypes || []).find(ft => ft.id === a.feed_type_id)?.name || 'Unknown';
-              return (
-                <span key={a.id} className="flex items-center gap-1 px-3 py-1 rounded-full border border-[var(--accent-primary)] bg-[var(--bg-elevated)] font-mono text-xs text-[var(--text-primary)]">
-                  {feedName}
-                  <button
-                    type="button"
-                    onClick={() => onUnassign(a.id)}
-                    className="text-[var(--text-muted)] hover:text-[var(--accent-danger)] ml-1"
-                  >
-                    ×
-                  </button>
-                </span>
-              );
-            })}
+            {flock.feed_assignments.map(fa => (
+              <span key={fa.feed_type_id}
+                className="px-3 py-1 rounded-full font-mono text-xs bg-[var(--bg-elevated)] border border-[var(--accent-primary)] text-[var(--text-primary)]">
+                {fa.feed_types?.name || (feedTypes || []).find(ft => ft.id === fa.feed_type_id)?.name || 'Feed'}
+              </span>
+            ))}
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-[var(--border)]">
-            <span className="font-mono text-xs text-[var(--text-muted)]">No feeds assigned</span>
-            <button
-              type="button"
-              onClick={() => setShowFeedModal(true)}
-              className="btn btn-xs btn-ghost font-mono border border-[var(--border)] ml-auto text-[var(--accent-primary)]"
-            >
-              + Assign feed
+          <p className="font-mono text-xs text-[var(--text-muted)] italic m-0">
+            No feeds assigned —{' '}
+            <button type="button" onClick={() => onOpenAssignModal(flock)}
+              className="text-[var(--accent-primary)] hover:underline">
+              assign one
             </button>
-          </div>
-        )}
-        {showFeedModal && (
-          <FeedAssignModal
-            feedTypes={feedTypes || []}
-            assignedFeeds={assignedFeeds}
-            onAssign={onAssign}
-            onUnassign={onUnassign}
-            onClose={() => setShowFeedModal(false)}
-          />
+          </p>
         )}
       </div>
 
@@ -647,25 +673,14 @@ function FlockEditor({ draft, editing, feedTypes, flock, onAssign, onCancel, onC
   );
 }
 
-function FeedAssignModal({ feedTypes, assignedFeeds, onAssign, onUnassign, onClose }) {
-  const assignedMap = new Map(assignedFeeds.map(a => [a.feed_type_id, a.id]));
-  const [checked, setChecked] = useState(new Set(assignedFeeds.map(a => a.feed_type_id)));
+function FeedAssignModal({ flock, feedTypes, selectedFeedIds, setSelectedFeedIds, onSave, onClose }) {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     setSaving(true);
     try {
-      for (const ft of feedTypes) {
-        const wasAssigned = assignedMap.has(ft.id);
-        const isChecked = checked.has(ft.id);
-        if (isChecked && !wasAssigned) {
-          await onAssign(ft.id);
-        } else if (!isChecked && wasAssigned) {
-          await onUnassign(assignedMap.get(ft.id));
-        }
-      }
-      onClose();
-    } finally {
+      await onSave();
+    } catch {
       setSaving(false);
     }
   }
@@ -673,37 +688,45 @@ function FeedAssignModal({ feedTypes, assignedFeeds, onAssign, onUnassign, onClo
   return (
     <dialog className="modal modal-open" style={{ zIndex: 200 }}>
       <div className="modal-box bg-[var(--bg-surface)] border border-[var(--border)]">
-        <h3 className="font-mono text-lg font-bold text-[var(--text-primary)] mb-4">Assign Feeds</h3>
+        <h3 className="display-font text-xl text-[var(--text-primary)] mb-4">
+          Assign Feeds to {flock?.name}
+        </h3>
         <div className="grid gap-1">
           {feedTypes.length === 0 ? (
-            <p className="font-mono text-xs text-[var(--text-muted)]">No feed types created yet — add one in Feed Types below.</p>
-          ) : feedTypes.map(ft => (
-            <label key={ft.id} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-[var(--bg-elevated)]">
+            <p className="font-mono text-sm text-[var(--text-muted)] text-center py-4">
+              No feed types created yet. Add feeds in the Feed Types section below.
+            </p>
+          ) : feedTypes.map(feed => (
+            <label key={feed.id}
+              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[var(--bg-elevated)] transition-colors">
               <input
                 type="checkbox"
-                checked={checked.has(ft.id)}
+                checked={selectedFeedIds.includes(feed.id)}
                 onChange={e => {
-                  const next = new Set(checked);
-                  if (e.target.checked) next.add(ft.id); else next.delete(ft.id);
-                  setChecked(next);
+                  if (e.target.checked) {
+                    setSelectedFeedIds(prev => [...prev, feed.id]);
+                  } else {
+                    setSelectedFeedIds(prev => prev.filter(id => id !== feed.id));
+                  }
                 }}
                 className="checkbox checkbox-sm [--chkbg:var(--accent-primary)]"
               />
-              <span className="font-mono text-sm text-[var(--text-primary)] flex-1">{ft.name}</span>
-              <span className="font-mono text-xs text-[var(--text-muted)]">{ft.unit}</span>
+              <div className="flex-1">
+                <p className="font-mono text-sm text-[var(--text-primary)] m-0">{feed.name}</p>
+                <p className="font-mono text-xs text-[var(--text-muted)] m-0">
+                  {feed.unit} · ${feed.cost_per_unit?.toFixed(4)}/lb · {feed.current_on_hand} on hand
+                </p>
+              </div>
             </label>
           ))}
         </div>
         <div className="flex gap-2 mt-4">
-          <button type="button" onClick={onClose} className="btn btn-sm btn-ghost font-mono border border-[var(--border)] flex-1">
+          <button type="button" onClick={onClose}
+            className="btn btn-sm btn-ghost font-mono border border-[var(--border)] flex-1">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="btn btn-sm font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none flex-1 disabled:opacity-50"
-          >
+          <button type="button" onClick={handleSave} disabled={saving}
+            className="btn btn-sm font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none flex-1 disabled:opacity-50">
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
