@@ -95,6 +95,8 @@ function ScaleHouse() {
   const [completed, setCompleted] = useState([]);
   const [skipped, setSkipped] = useState([]);
   const [done, setDone] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [backBanner, setBackBanner] = useState('');
   const [quickFlockId, setQuickFlockId] = useState("");
 
   const [headcountChange, setHeadcountChange] = useState(0);
@@ -329,7 +331,22 @@ function ScaleHouse() {
       if (!hasFeedableFlock) setDone(true);
       return next;
     });
+    setHistory(prev => [...prev, currentIndex]);
     resetForm();
+  }
+
+  function handleGoBack() {
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    setHistory(h => h.slice(0, -1));
+    const prevFlockId = queue[prev]?.flock_id;
+    if (prevFlockId) setCompleted(c => c.filter(id => id !== prevFlockId));
+    setCurrentIndex(prev);
+    setDone(false);
+    resetForm();
+    const flockName = queue[prev]?.name || 'previous flock';
+    setBackBanner(`Going back to ${flockName}. Previous entry saved — add more observations or edit in the Edit Day panel.`);
+    window.setTimeout(() => setBackBanner(''), 4000);
   }
 
   async function handleSubmit() {
@@ -360,6 +377,7 @@ function ScaleHouse() {
       });
       setFlash(true);
       window.setTimeout(() => setFlash(false), 600);
+      setHistory(prev => [...prev, currentIndex]);
       resetForm();
       await Promise.all([refreshQueue(), refreshEvents()]);
     } catch (requestError) {
@@ -514,6 +532,9 @@ function ScaleHouse() {
               Start over
             </button>
           </div>
+          <p className="font-mono text-xs text-[var(--text-muted)] text-center mt-2">
+            Missed something? Tap "Edit an entry" above to go back and add observations.
+          </p>
         </div>
 
         {showReviewPanel && (
@@ -563,6 +584,12 @@ function ScaleHouse() {
       ) : null}
 
       {error ? <div className="error-banner">{error}</div> : null}
+
+      {backBanner && (
+        <div className="bg-[rgba(76,175,80,0.1)] border border-[var(--border)] rounded-lg px-4 py-3 font-mono text-xs text-[var(--text-secondary)]">
+          {backBanner}
+        </div>
+      )}
 
       <div className="grid gap-4 items-start grid-cols-[minmax(0,1fr)_400px] max-[980px]:grid-cols-1">
         <ScaleEntryCard
@@ -642,9 +669,19 @@ function ScaleHouse() {
 
       {isDailyMode ? (
         <div className="fixed bottom-0 left-0 lg:left-[240px] right-0 z-[5] flex items-center justify-between gap-3 bg-[rgba(15,26,15,0.95)] border-t border-[var(--border)] py-[14px] px-6">
-          <button className="secondary-button" type="button" onClick={handleSkip}>
-            Skip - feed later
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className={`btn btn-sm btn-ghost font-mono border border-[var(--border)] text-[var(--text-muted)] gap-1${history.length === 0 ? ' opacity-30 cursor-not-allowed' : ''}`}
+              type="button"
+              disabled={history.length === 0}
+              onClick={handleGoBack}
+            >
+              ← Back
+            </button>
+            <button className="secondary-button" type="button" onClick={handleSkip}>
+              Skip
+            </button>
+          </div>
           <div className="flex flex-col items-end gap-1">
             {!canLog && !saving && blockReason && (
               <span className="font-mono text-[11px] text-[var(--accent-warn)]">{blockReason}</span>
@@ -709,12 +746,12 @@ function DailyModeBanner({
           Review
         </button>
         <button
-          className="inline-flex items-center gap-1.5 bg-[var(--bg-base)] text-[var(--accent-primary)] font-mono text-xs font-semibold rounded-md px-2.5 py-1.5 border-0 cursor-pointer hover:opacity-90"
+          className="inline-flex items-center gap-1.5 bg-[var(--bg-base)] text-[var(--accent-primary)] font-mono text-xs font-semibold rounded-md px-3 py-1.5 border-0 cursor-pointer hover:opacity-90"
           type="button"
           onClick={onEdit}
         >
           <Pencil size={13} />
-          Edit
+          Edit Day
         </button>
         <div className="relative">
           <button
