@@ -895,15 +895,13 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
       <div className="fixed inset-0 z-40 bg-[rgba(3,8,3,0.72)]" onClick={onClose} />
       <aside className="fixed inset-y-0 right-0 z-50 w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-[var(--bg-surface)] sticky top-0 z-10">
+        <div className="sticky top-0 z-10 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between px-4 py-3">
           <h2 className="display-font text-xl leading-none m-0">Day Review</h2>
           <button
-            className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-transparent border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            type="button"
-            onClick={onClose}
-            aria-label="Close review panel"
+            type="button" onClick={onClose} aria-label="Close review panel"
+            className="btn btn-circle btn-sm bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--accent-danger)] hover:border-[var(--accent-danger)] hover:text-white transition-all"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
@@ -1209,7 +1207,7 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
       <div className="fixed inset-0 z-40 bg-[rgba(3,8,3,0.72)]" onClick={onClose} />
       <aside className="fixed inset-y-0 right-0 z-50 w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-[var(--bg-surface)] sticky top-0 z-10">
+        <div className="sticky top-0 z-10 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             {editingFlock && (
               <button type="button" onClick={() => setEditingFlock(null)}
@@ -1220,10 +1218,10 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
             <h2 className="display-font text-xl leading-none m-0">Edit Day</h2>
           </div>
           <button
-            className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-transparent border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
             type="button" onClick={onClose} aria-label="Close edit panel"
+            className="btn btn-circle btn-sm bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--accent-danger)] hover:border-[var(--accent-danger)] hover:text-white transition-all"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
