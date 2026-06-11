@@ -171,9 +171,9 @@ function FlockDetail() {
         <div className="flex items-start gap-3">
           <span className="text-[30px]" aria-hidden="true">{animalClass.emoji}</span>
           <div>
-            <h1 className="display-font text-[32px] leading-none m-0">{flock.name}</h1>
+            <h1 className="display-font text-3xl lg:text-4xl text-[var(--text-primary)] leading-tight">{flock.name}</h1>
             <p className="text-[var(--text-secondary)] text-xs m-0 mt-1">
-              {flock.breed_name} &gt; {flock.animal_class_name}
+              {flock.breeds?.name} · {flock.breeds?.animal_types?.name} · {flock.breeds?.animal_types?.animal_classes?.name}
             </p>
             <div className="flex items-center gap-2.5 mt-1">
               <span className={`designation-badge ${flock.designation}`}>{flock.designation}</span>
@@ -181,30 +181,30 @@ function FlockDetail() {
             </div>
           </div>
         </div>
-        <div className="col-span-2 lg:col-span-1 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:justify-end lg:items-start">
+        <div className="col-span-2 lg:col-span-1 grid grid-cols-2 gap-2 mt-4 lg:grid-cols-4 lg:gap-3">
           <button
-            className="primary-button w-full h-12 text-base lg:w-auto lg:h-auto lg:text-sm"
+            className="col-span-2 lg:col-span-1 primary-button"
             type="button"
             onClick={() => navigate(`/scale-house?mode=quick&flock=${flock.id}`)}
           >
             Start Feeding
           </button>
           {showProduction && (
-            <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setModal("production")}>
+            <button className="btn btn-ghost font-mono text-sm border border-[var(--border)]" type="button" onClick={() => setModal("production")}>
               Log Production
             </button>
           )}
           {animalClass.litterTracking && (
-            <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setShowLitterModal(true)}>
+            <button className="btn btn-ghost font-mono text-sm border border-[var(--border)]" type="button" onClick={() => setShowLitterModal(true)}>
               Log Litter
             </button>
           )}
           {animalClass.producesYoung && (
-            <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setModal("young_sale")}>
+            <button className="btn btn-ghost font-mono text-sm border border-[var(--border)]" type="button" onClick={() => setModal("young_sale")}>
               Sell {animalClass.youngTerm}
             </button>
           )}
-          <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setModal("casualty")}>
+          <button className="btn btn-ghost font-mono text-sm border border-[var(--border)]" type="button" onClick={() => setModal("casualty")}>
             Log Headcount Change
           </button>
         </div>
@@ -215,13 +215,15 @@ function FlockDetail() {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <StatCard label={`Current ${animalClass.headTerm}`} value={formatNumber(flock.current_headcount)} />
         <StatCard label="All-time Feed Cost" value={formatMoney(stats.total_feed_cost_alltime)} />
-        {showProduction ? <StatCard label="All-time Eggs" value={formatNumber(stats.total_eggs_alltime)} /> : null}
-        {showProduction ? (
+        {animalClass.producesEggs && (
+          <StatCard label="All-time Eggs" value={formatNumber(stats.total_eggs_alltime)} />
+        )}
+        {animalClass.producesEggs && (
           <StatCard
             label="Cost per Dozen"
             value={stats.current_cost_per_dozen == null ? "N/A" : formatMoney(stats.current_cost_per_dozen)}
           />
-        ) : null}
+        )}
       </div>
 
       <div className="grid gap-[18px] items-start lg:[grid-template-columns:minmax(0,1fr)_320px]">
