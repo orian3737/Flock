@@ -42,9 +42,6 @@ function getLocalDateString(d = new Date()) {
     String(d.getDate()).padStart(2, '0')}`;
 }
 
-console.log('Local date:', getLocalDateString());
-console.log('UTC date:',   new Date().toISOString().split('T')[0]);
-
 const moneyFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",
   style: "currency",

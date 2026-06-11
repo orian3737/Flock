@@ -197,23 +197,50 @@ function FarmSetup() {
     }
   }
 
+  function closeAssignModal() {
+    setAssignModalFlockId(null);
+    setAssignModalFlock(null);
+    setSelectedFeedIds([]);
+  }
+
+  function openAssignModal(flock) {
+    const current = flock.feed_assignments?.map(fa => fa.feed_type_id) || [];
+    setAssignModalFlockId(flock.id);
+    setAssignModalFlock(flock);
+    setSelectedFeedIds(current);
+  }
+
   async function handleSaveFeedAssignments() {
     const flockId = assignModalFlockId;
+    if (!flockId) {
+      setFeedback({ type: 'error', message: 'Choose a flock before assigning feeds.' });
+      return false;
+    }
     setFeedback(null);
     try {
-      const { error: delErr } = await supabase.from('feed_assignments').delete().eq('flock_id', flockId);
-      if (delErr) throw delErr;
+      const { error: deleteError } = await supabase
+        .from('feed_assignments')
+        .delete()
+        .eq('flock_id', flockId);
+      if (deleteError) throw deleteError;
+
       if (selectedFeedIds.length > 0) {
-        const { error: insErr } = await supabase.from('feed_assignments').insert(
-          selectedFeedIds.map(feedId => ({ flock_id: flockId, feed_type_id: feedId }))
-        );
-        if (insErr) throw insErr;
+        const { error: insertError } = await supabase
+          .from('feed_assignments')
+          .insert(
+            selectedFeedIds.map(feedId => ({
+              flock_id:     flockId,
+              feed_type_id: feedId,
+            }))
+          );
+        if (insertError) throw insertError;
       }
-      setAssignModalFlockId(null);
-      setAssignModalFlock(null);
+      closeAssignModal();
       if (await loadSummary()) setFeedback({ type: 'success', message: 'Feeds updated.' });
+      return true;
     } catch (err) {
       setFeedback({ type: 'error', message: formatError(err) });
+      return false;
     }
   }
 
@@ -381,11 +408,7 @@ function FarmSetup() {
                                 onChange={updateDraft}
                                 onDelete={() => deleteItem("flock", flock.id)}
                                 onEdit={() => beginEdit("flock", flock)}
-                                onOpenAssignModal={(fl) => {
-                                  setAssignModalFlockId(fl.id);
-                                  setAssignModalFlock(fl);
-                                  setSelectedFeedIds(fl.feed_assignments?.map(fa => fa.feed_type_id) || []);
-                                }}
+                                onOpenAssignModal={openAssignModal}
                                 onSave={() => saveEdit("flock", flock.id)}
                               />
                             ))}
@@ -582,7 +605,7 @@ function FarmSetup() {
           selectedFeedIds={selectedFeedIds}
           setSelectedFeedIds={setSelectedFeedIds}
           onSave={handleSaveFeedAssignments}
-          onClose={() => { setAssignModalFlockId(null); setAssignModalFlock(null); }}
+          onClose={closeAssignModal}
         />
       )}
     </section>
@@ -615,36 +638,78 @@ function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
 function FlockEditor({ draft, editing, feedTypes, flock, onCancel, onChange, onDelete, onEdit, onSave, onOpenAssignModal }) {
   const source = editing ? draft : flock;
   return (
-    <div className="settings-edit-card">
-      <div className="settings-edit-grid">
-        <label className="field">
-          <span>Name</span>
-          <input disabled={!editing} value={source.name || ""} onChange={e => onChange("name", e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Pen</span>
-          <input disabled={!editing} value={source.pen_name || ""} onChange={e => onChange("pen_name", e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Headcount</span>
-          <input disabled={!editing} min="0" type="number" value={source.current_headcount ?? 0} onChange={e => onChange("current_headcount", e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Designation</span>
-          <select disabled={!editing} value={source.designation || "mixed"} onChange={e => onChange("designation", e.target.value)}>
-            {designations.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </label>
+    <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] overflow-hidden mb-3">
+      <div className="flex items-center gap-4 px-4 py-3 flex-wrap">
+        {editing ? (
+          <>
+            <label className="field flex-1 min-w-[110px]">
+              <span>Name</span>
+              <input value={source.name || ""} onChange={e => onChange("name", e.target.value)} />
+            </label>
+            <label className="field min-w-[90px]">
+              <span>Pen</span>
+              <input value={source.pen_name || ""} onChange={e => onChange("pen_name", e.target.value)} />
+            </label>
+            <label className="field min-w-[80px]">
+              <span>Headcount</span>
+              <input min="0" type="number" value={source.current_headcount ?? 0} onChange={e => onChange("current_headcount", e.target.value)} />
+            </label>
+            <label className="field min-w-[100px]">
+              <span>Designation</span>
+              <select value={source.designation || "mixed"} onChange={e => onChange("designation", e.target.value)}>
+                {designations.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </label>
+            <div className="ml-auto flex gap-2 shrink-0">
+              <button type="button" onClick={onSave}
+                className="btn btn-xs font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none">
+                <Save size={12} /> Save
+              </button>
+              <button type="button" onClick={onCancel}
+                className="btn btn-xs btn-ghost font-mono border border-[var(--border)]">
+                <X size={12} /> Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="font-mono text-xs text-[var(--text-muted)] m-0">Name</p>
+              <p className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">{flock.name}</p>
+            </div>
+            <div>
+              <p className="font-mono text-xs text-[var(--text-muted)] m-0">Pen</p>
+              <p className="font-mono text-sm text-[var(--text-primary)] m-0">{flock.pen_name || '—'}</p>
+            </div>
+            <div>
+              <p className="font-mono text-xs text-[var(--text-muted)] m-0">Headcount</p>
+              <p className="font-mono text-sm text-[var(--text-primary)] m-0">{flock.current_headcount}</p>
+            </div>
+            <div>
+              <p className="font-mono text-xs text-[var(--text-muted)] m-0">Designation</p>
+              <p className="font-mono text-sm text-[var(--text-primary)] capitalize m-0">{flock.designation}</p>
+            </div>
+            <div className="ml-auto flex gap-2 shrink-0">
+              <button type="button" onClick={onEdit} aria-label={`Edit ${flock.name}`}
+                className="btn btn-xs btn-ghost text-[var(--text-muted)] hover:text-[var(--accent-primary)]">
+                <Pencil size={14} />
+              </button>
+              <button type="button" onClick={onDelete} aria-label={`Delete ${flock.name}`}
+                className="btn btn-xs btn-ghost text-[var(--text-muted)] hover:text-[var(--accent-danger)]">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="mt-3">
+      <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--bg-surface)]">
         <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Assigned Feeds</span>
-          <button
-            type="button"
-            onClick={() => onOpenAssignModal(flock)}
-            className="font-mono text-xs text-[var(--accent-primary)] hover:underline"
-          >
+          <span className="font-mono text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+            Assigned Feeds
+          </span>
+          <button type="button" onClick={() => onOpenAssignModal(flock)}
+            className="font-mono text-xs text-[var(--accent-primary)] hover:underline">
             Manage →
           </button>
         </div>
@@ -658,17 +723,12 @@ function FlockEditor({ draft, editing, feedTypes, flock, onCancel, onChange, onD
             ))}
           </div>
         ) : (
-          <p className="font-mono text-xs text-[var(--text-muted)] italic m-0">
-            No feeds assigned —{' '}
-            <button type="button" onClick={() => onOpenAssignModal(flock)}
-              className="text-[var(--accent-primary)] hover:underline">
-              assign one
-            </button>
-          </p>
+          <button type="button" onClick={() => onOpenAssignModal(flock)}
+            className="font-mono text-xs text-[var(--text-muted)] italic hover:text-[var(--accent-primary)]">
+            No feeds assigned — tap to assign
+          </button>
         )}
       </div>
-
-      <RowActions editing={editing} onCancel={onCancel} onDelete={onDelete} onEdit={onEdit} onSave={onSave} />
     </div>
   );
 }
@@ -679,7 +739,8 @@ function FeedAssignModal({ flock, feedTypes, selectedFeedIds, setSelectedFeedIds
   async function handleSave() {
     setSaving(true);
     try {
-      await onSave();
+      const saved = await onSave();
+      if (!saved) setSaving(false);
     } catch {
       setSaving(false);
     }

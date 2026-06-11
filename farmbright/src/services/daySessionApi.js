@@ -7,9 +7,6 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-console.log('Local date:', getLocalDateString());
-console.log('UTC date:',   new Date().toISOString().split('T')[0]);
-
 export async function getTodaySession(date = null) {
   const sessionDate = date || getLocalDateString();
 
@@ -26,7 +23,7 @@ export async function getTodaySession(date = null) {
           breeds (
             name,
             animal_types (
-              name, emoji, class_type,
+              name, emoji,
               produces_eggs, produces_milk,
               produces_meat, produces_young,
               working_animal,
