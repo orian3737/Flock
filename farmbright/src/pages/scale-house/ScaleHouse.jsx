@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { getAnimalEmoji, getClassConfig } from "../../utils/animalClass";
+import { getAnimalEmoji, getClassConfig, OBSERVATION_CATEGORIES } from "../../utils/animalClass";
 import { FarmContext } from "../../context/FarmContext";
 import ObservationEntry from "../../components/ObservationEntry";
 import ObservationCard from "../../components/ObservationCard";
@@ -97,6 +97,7 @@ function ScaleHouse() {
   const [done, setDone] = useState(false);
   const [history, setHistory] = useState([]);
   const [backBanner, setBackBanner] = useState('');
+  const [sessionLog, setSessionLog] = useState({});
   const [quickFlockId, setQuickFlockId] = useState("");
 
   const [headcountChange, setHeadcountChange] = useState(0);
@@ -177,6 +178,8 @@ function ScaleHouse() {
   const showProduction = showEggs || showLitter || showMilk || showWorking;
   const isBackdated = sessionDate !== todayString();
   const completedPercent = queue.length ? Math.round((completed.length / queue.length) * 100) : 0;
+  const currentFlockLog = currentFlock ? sessionLog[currentFlock.flock_id] ?? null : null;
+  const alreadyLogged = !!currentFlockLog;
 
   // ── Data fetchers ──────────────────────────────────────────────────────────
   const refreshQueue = useCallback(async () => {
@@ -377,6 +380,24 @@ function ScaleHouse() {
       });
       setFlash(true);
       window.setTimeout(() => setFlash(false), 600);
+      setSessionLog(prev => ({
+        ...prev,
+        [currentFlock.flock_id]: {
+          feedingEvent: {
+            feed_type_id: safeId(selectedFeed),
+            feed_name:    currentFeed?.name || '',
+            total_weight: parseFloat(feedWeight) || 0,
+            input_method: inputMethod,
+          },
+          productionLog: {
+            egg_count:      eggCount !== '' ? Number(eggCount) : null,
+            water_consumed: waterConsumed !== '' ? Number(waterConsumed) : null,
+            litter_count:   birthsToday && litterCount !== '' ? Number(litterCount) : null,
+            litter_size:    birthsToday && litterSize !== '' ? Number(litterSize) : null,
+          },
+          observations: [...observations],
+        },
+      }));
       setHistory(prev => [...prev, currentIndex]);
       resetForm();
       await Promise.all([refreshQueue(), refreshEvents()]);
@@ -402,6 +423,7 @@ function ScaleHouse() {
       setSkipped([]);
       setCurrentIndex(0);
       setDone(false);
+      setSessionLog({});
     } catch {
       setError("Could not reload queue.");
     } finally {
@@ -419,6 +441,7 @@ function ScaleHouse() {
       setSkipped([]);
       setCurrentIndex(0);
       setDone(false);
+      setSessionLog({});
       await refreshEvents();
       loadSessionData(panelDate);
     } catch {
@@ -662,6 +685,10 @@ function ScaleHouse() {
           flash={flash}
           showCostDetails={showCostDetails}
           setShowCostDetails={setShowCostDetails}
+          alreadyLogged={alreadyLogged}
+          currentFlockLog={currentFlockLog}
+          openEditPanel={openEditPanel}
+          setSessionLog={setSessionLog}
         />
 
         <TodayLogPanel eventsData={eventsData} onDelete={handleDeleteEvent} />
@@ -1550,6 +1577,10 @@ function ScaleEntryCard(props) {
     flash,
     showCostDetails,
     setShowCostDetails,
+    alreadyLogged,
+    currentFlockLog,
+    openEditPanel,
+    setSessionLog,
   } = props;
 
   const cardClass = `scale-entry-inner bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg min-w-0 p-[18px] grid gap-[18px]${flash ? " shadow-[0_0_0_2px_rgba(76,175,80,0.45)]" : ""}`;
@@ -1649,405 +1680,527 @@ function ScaleEntryCard(props) {
         </div>
       </header>
 
-      <ScaleSection title="Headcount Check">
-        <p className="text-[var(--text-muted)] text-xs m-0">Last recorded: {currentFlock.current_headcount} {currentAnimalClass.headTerm.toLowerCase()}</p>
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
-            type="button"
-            onClick={() => setHeadcountChange((value) => value - 1)}
-          >
-            -
-          </button>
-          <span className="number-font text-[var(--text-primary)] text-[28px] min-w-[54px] text-center">{headcountChange}</span>
-          <button
-            className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
-            type="button"
-            onClick={() => setHeadcountChange((value) => value + 1)}
-          >
-            +
-          </button>
-        </div>
-        {headcountChange < 0 ? (
-          <div className="grid gap-2">
-            <strong className="text-[var(--accent-danger)]">{headcountChange} casualties</strong>
-            <textarea
-              className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[92px] outline-none p-[10px] resize-y w-full"
-              maxLength={500}
-              placeholder="Casualty notes required..."
-              value={casualtyNotes}
-              onChange={(event) => setCasualtyNotes(event.target.value)}
-            />
+      {alreadyLogged ? (
+        <>
+          {/* ── Already-logged review card ─────────────────────────────────── */}
+          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--accent-primary)] p-4">
+            <p className="font-mono text-xs font-bold text-[var(--accent-primary)] uppercase tracking-wider mb-3">
+              Already logged for this session
+            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-mono text-xs text-[var(--text-muted)]">Feed:</span>
+              <span className="font-mono text-sm text-[var(--text-primary)]">
+                {currentFlockLog.feedingEvent.total_weight} lbs · {currentFlockLog.feedingEvent.feed_name}
+              </span>
+              <button
+                type="button"
+                onClick={openEditPanel}
+                className="font-mono text-xs text-[var(--accent-primary)] hover:underline ml-auto"
+              >
+                Edit →
+              </button>
+            </div>
+            {currentFlockLog.productionLog.water_consumed ? (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-mono text-xs text-[var(--text-muted)]">Water:</span>
+                <span className="font-mono text-sm text-[var(--text-primary)]">{currentFlockLog.productionLog.water_consumed} gal</span>
+              </div>
+            ) : null}
+            {currentFlockLog.productionLog.egg_count != null ? (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-mono text-xs text-[var(--text-muted)]">Eggs:</span>
+                <span className="font-mono text-sm text-[var(--text-primary)]">{currentFlockLog.productionLog.egg_count}</span>
+              </div>
+            ) : null}
+            {currentFlockLog.productionLog.litter_size != null ? (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-mono text-xs text-[var(--text-muted)]">{currentAnimalClass.youngTerm} born:</span>
+                <span className="font-mono text-sm text-[var(--text-primary)]">{currentFlockLog.productionLog.litter_size}</span>
+              </div>
+            ) : null}
+            {currentFlockLog.observations.length > 0 ? (
+              <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                <p className="font-mono text-xs text-[var(--text-muted)] mb-2">
+                  {currentFlockLog.observations.length} observation{currentFlockLog.observations.length !== 1 ? 's' : ''} logged
+                </p>
+                {currentFlockLog.observations.map((obs, i) => (
+                  <div key={i} className="font-mono text-xs text-[var(--text-secondary)] mb-1 flex items-center gap-2">
+                    <span>{OBSERVATION_CATEGORIES.find(c => c.key === obs.category)?.emoji}</span>
+                    <span>{obs.selected_options?.join(', ') || obs.detail}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
-        ) : headcountChange > 0 ? (
-          <div className="grid gap-2">
-            <strong className="text-[var(--accent-primary)]">+{headcountChange} additions</strong>
-            <textarea
-              className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[92px] outline-none p-[10px] resize-y w-full"
-              maxLength={500}
-              placeholder="Addition notes..."
-              value={casualtyNotes}
-              onChange={(event) => setCasualtyNotes(event.target.value)}
-            />
-          </div>
-        ) : (
-          <p className="text-[var(--text-muted)] text-xs m-0">{"✓"} No changes</p>
-        )}
-      </ScaleSection>
 
-      <ScaleSection title="Feed">
-        <div className="flex flex-wrap gap-2">
-          {currentFlock.assigned_feeds?.length ? (
-            currentFlock.assigned_feeds.map((feed) => (
+          {/* ── Add another observation ────────────────────────────────────── */}
+          <div className="border-t border-[rgba(46,125,50,0.55)] pt-4">
+            <p className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+              Add another observation
+            </p>
+            {editingObs && (
+              <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4 mb-1">
+                <ObservationEntry
+                  compact={true}
+                  flockId={currentFlock?.flock_id}
+                  animals={flockAnimals}
+                  editingObs={editingObs}
+                  userId={userId}
+                  onSave={(updated) => {
+                    const animal = flockAnimals.find(a => a.id === updated.animal_id);
+                    setSessionLog(prev => ({
+                      ...prev,
+                      [currentFlock.flock_id]: {
+                        ...prev[currentFlock.flock_id],
+                        observations: prev[currentFlock.flock_id].observations.map(o =>
+                          o.id === updated.id
+                            ? { ...updated, animals: animal ? { id: animal.id, identifier: animal.identifier } : null }
+                            : o
+                        ),
+                      },
+                    }));
+                    setEditingObs(null);
+                  }}
+                  onCancel={() => setEditingObs(null)}
+                />
+              </div>
+            )}
+            {!editingObs && !showAddObs ? (
+              <button
+                type="button"
+                onClick={() => setShowAddObs(true)}
+                className="btn btn-sm btn-ghost w-full font-mono border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+              >
+                + Add observation
+              </button>
+            ) : !editingObs ? (
+              <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                <ObservationEntry
+                  compact={true}
+                  flockId={currentFlock?.flock_id}
+                  animals={flockAnimals}
+                  userId={userId}
+                  onSave={(obs) => {
+                    const animal = flockAnimals.find(a => a.id === obs.animal_id);
+                    const obsWithAnimals = { ...obs, animals: animal ? { id: animal.id, identifier: animal.identifier } : null };
+                    setSessionLog(prev => ({
+                      ...prev,
+                      [currentFlock.flock_id]: {
+                        ...prev[currentFlock.flock_id],
+                        observations: [...prev[currentFlock.flock_id].observations, obsWithAnimals],
+                      },
+                    }));
+                    setShowAddObs(false);
+                  }}
+                  onCancel={() => setShowAddObs(false)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <ScaleSection title="Headcount Check">
+            <p className="text-[var(--text-muted)] text-xs m-0">Last recorded: {currentFlock.current_headcount} {currentAnimalClass.headTerm.toLowerCase()}</p>
+            <div className="flex items-center gap-3">
+              <button
+                className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                type="button"
+                onClick={() => setHeadcountChange((value) => value - 1)}
+              >
+                -
+              </button>
+              <span className="number-font text-[var(--text-primary)] text-[28px] min-w-[54px] text-center">{headcountChange}</span>
+              <button
+                className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                type="button"
+                onClick={() => setHeadcountChange((value) => value + 1)}
+              >
+                +
+              </button>
+            </div>
+            {headcountChange < 0 ? (
+              <div className="grid gap-2">
+                <strong className="text-[var(--accent-danger)]">{headcountChange} casualties</strong>
+                <textarea
+                  className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[92px] outline-none p-[10px] resize-y w-full"
+                  maxLength={500}
+                  placeholder="Casualty notes required..."
+                  value={casualtyNotes}
+                  onChange={(event) => setCasualtyNotes(event.target.value)}
+                />
+              </div>
+            ) : headcountChange > 0 ? (
+              <div className="grid gap-2">
+                <strong className="text-[var(--accent-primary)]">+{headcountChange} additions</strong>
+                <textarea
+                  className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[92px] outline-none p-[10px] resize-y w-full"
+                  maxLength={500}
+                  placeholder="Addition notes..."
+                  value={casualtyNotes}
+                  onChange={(event) => setCasualtyNotes(event.target.value)}
+                />
+              </div>
+            ) : (
+              <p className="text-[var(--text-muted)] text-xs m-0">{"✓"} No changes</p>
+            )}
+          </ScaleSection>
+
+          <ScaleSection title="Feed">
+            <div className="flex flex-wrap gap-2">
+              {currentFlock.assigned_feeds?.length ? (
+                currentFlock.assigned_feeds.map((feed) => (
+                  <button
+                    className={[
+                      "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2",
+                      Number(selectedFeed) === feed.feed_type_id ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
+                    ].join(" ")}
+                    key={feed.feed_type_id}
+                    type="button"
+                    onClick={() => setSelectedFeed(String(feed.feed_type_id))}
+                  >
+                    {feed.name}
+                  </button>
+                ))
+              ) : (
+                <span className="text-[var(--text-muted)] text-xs m-0">No feed assigned.</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
               <button
                 className={[
                   "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2",
-                  Number(selectedFeed) === feed.feed_type_id ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
+                  inputMethod === "manual" ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
                 ].join(" ")}
-                key={feed.feed_type_id}
                 type="button"
-                onClick={() => setSelectedFeed(String(feed.feed_type_id))}
+                onClick={() => setInputMethod("manual")}
               >
-                {feed.name}
+                MANUAL
               </button>
-            ))
-          ) : (
-            <span className="text-[var(--text-muted)] text-xs m-0">No feed assigned.</span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            className={[
-              "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2",
-              inputMethod === "manual" ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
-            ].join(" ")}
-            type="button"
-            onClick={() => setInputMethod("manual")}
-          >
-            MANUAL
-          </button>
-          <button
-            className={[
-              "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2",
-              inputMethod === "scale" ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
-            ].join(" ")}
-            type="button"
-            onClick={() => setInputMethod("scale")}
-          >
-            SCALE
-          </button>
-        </div>
-
-        {inputMethod === "manual" ? (
-          <label className="flex items-baseline gap-3">
-            <input
-              className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[36px] max-w-[220px] outline-none py-1 px-0"
-              min="0"
-              step="0.01"
-              type="number"
-              value={feedWeight}
-              onChange={(event) => setFeedWeight(event.target.value)}
-            />
-            <span className="text-[var(--text-muted)]">lbs</span>
-          </label>
-        ) : (
-          <div className="bg-[var(--bg-base)] border border-[var(--border)] rounded-lg grid gap-3 p-[14px]">
-            <div className="flex flex-wrap items-center gap-2 text-[var(--text-secondary)] text-xs">
-              <span
+              <button
                 className={[
-                  "inline-block rounded-full h-[10px] w-[10px]",
-                  scaleConnected
-                    ? "bg-[var(--accent-primary)] [animation:pulse-ring_1.4s_infinite]"
-                    : "bg-[var(--text-muted)]",
+                  "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2",
+                  inputMethod === "scale" ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
                 ].join(" ")}
-              />
-              {scaleConnected ? "Dymo S400 Live" : "Scale Not Detected"}
-              {scaleStable ? (
-                <span className="rounded-full text-[11px] font-bold py-[3px] px-[7px] uppercase bg-[rgba(76,175,80,0.16)] text-[var(--accent-primary)]">STABLE</span>
-              ) : null}
-              {scaleLive ? (
-                <span className="rounded-full text-[11px] font-bold py-[3px] px-[7px] uppercase bg-[rgba(255,143,0,0.16)] text-[var(--accent-warn)] [animation:pulse-ring_1.4s_infinite]">LIVE</span>
-              ) : null}
+                type="button"
+                onClick={() => setInputMethod("scale")}
+              >
+                SCALE
+              </button>
             </div>
-            <div className="number-font text-[var(--text-primary)] text-[48px] leading-none">
-              {formatNumber(scaleWeight, 2)} <span className="text-[var(--text-muted)] text-[16px]">lbs</span>
-            </div>
-            <label className="flex items-center text-[var(--text-secondary)] text-xs gap-2">
-              <input
-                checked={autoCapture}
-                type="checkbox"
-                onChange={(event) => setAutoCapture(event.target.checked)}
-              />
-              Auto-capture first stable reading
-            </label>
-            <label className="grid gap-2 text-[var(--text-secondary)] text-xs">
-              Manual override
-              <input
-                className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[38px] py-2 px-[10px]"
-                min="0"
-                step="0.01"
-                type="number"
-                value={feedWeight}
-                onChange={(event) => setFeedWeight(event.target.value)}
-              />
-            </label>
-          </div>
-        )}
 
-        <p className="text-[var(--text-muted)] text-xs m-0">
-          Feed remaining: {currentFeed ? `${formatNumber(currentFeed.current_on_hand)} ${currentFeed.unit}` : "Select feed"}
-        </p>
-      </ScaleSection>
-
-      <ScaleSection title="Water">
-        <div className="flex items-center gap-3">
-          <input
-            className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[28px] max-w-[150px] outline-none py-1 px-0"
-            min="0"
-            placeholder="0.0"
-            step="0.1"
-            type="number"
-            value={waterConsumed}
-            onChange={(event) => setWaterConsumed(event.target.value)}
-          />
-          <span className="text-[var(--text-muted)]">gal</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {[1, 2, 5, 10].map((amt) => (
-            <button
-              key={amt}
-              type="button"
-              className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[30px] px-3 py-1 text-xs font-mono hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
-              onClick={() => setWaterConsumed(String(amt))}
-            >
-              {amt} gal
-            </button>
-          ))}
-        </div>
-      </ScaleSection>
-
-      {showEggs ? (
-        <ScaleSection title="Egg Collection">
-          <div className="flex items-center gap-3">
-            <button
-              className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
-              type="button"
-              onClick={() => setEggCount(Math.max(Number(eggCount || 0) - 1, 0))}
-            >
-              -
-            </button>
-            <span className="number-font text-[var(--text-primary)] text-[28px] min-w-[54px] text-center">{eggCount || 0}</span>
-            <button
-              className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
-              type="button"
-              onClick={() => setEggCount(Number(eggCount || 0) + 1)}
-            >
-              +
-            </button>
-          </div>
-          <button
-            className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
-            type="button"
-            onClick={() => setProductionSkipped(true)}
-          >
-            Skip production data {"→"}
-          </button>
-        </ScaleSection>
-      ) : null}
-
-      {showLitter ? (
-        <ScaleSection title={`Litter / ${currentAnimalClass.youngTerm}`}>
-          <label className="flex items-center gap-2 text-[var(--text-secondary)] text-sm">
-            <input
-              checked={birthsToday}
-              type="checkbox"
-              onChange={(event) => {
-                setBirthsToday(event.target.checked);
-                if (!event.target.checked) {
-                  setLitterCount("");
-                  setLitterSize("");
-                  setLitterNotes("");
-                }
-              }}
-            />
-            Births Today?
-          </label>
-          {birthsToday ? (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="field">
-                  <span>Litters born</span>
-                  <input
-                    min="0"
-                    step="1"
-                    type="number"
-                    value={litterCount}
-                    onChange={(event) => setLitterCount(event.target.value)}
+            {inputMethod === "manual" ? (
+              <label className="flex items-baseline gap-3">
+                <input
+                  className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[36px] max-w-[220px] outline-none py-1 px-0"
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={feedWeight}
+                  onChange={(event) => setFeedWeight(event.target.value)}
+                />
+                <span className="text-[var(--text-muted)]">lbs</span>
+              </label>
+            ) : (
+              <div className="bg-[var(--bg-base)] border border-[var(--border)] rounded-lg grid gap-3 p-[14px]">
+                <div className="flex flex-wrap items-center gap-2 text-[var(--text-secondary)] text-xs">
+                  <span
+                    className={[
+                      "inline-block rounded-full h-[10px] w-[10px]",
+                      scaleConnected
+                        ? "bg-[var(--accent-primary)] [animation:pulse-ring_1.4s_infinite]"
+                        : "bg-[var(--text-muted)]",
+                    ].join(" ")}
                   />
-                </label>
-                <label className="field">
-                  <span>{currentAnimalClass.youngTerm} born</span>
+                  {scaleConnected ? "Dymo S400 Live" : "Scale Not Detected"}
+                  {scaleStable ? (
+                    <span className="rounded-full text-[11px] font-bold py-[3px] px-[7px] uppercase bg-[rgba(76,175,80,0.16)] text-[var(--accent-primary)]">STABLE</span>
+                  ) : null}
+                  {scaleLive ? (
+                    <span className="rounded-full text-[11px] font-bold py-[3px] px-[7px] uppercase bg-[rgba(255,143,0,0.16)] text-[var(--accent-warn)] [animation:pulse-ring_1.4s_infinite]">LIVE</span>
+                  ) : null}
+                </div>
+                <div className="number-font text-[var(--text-primary)] text-[48px] leading-none">
+                  {formatNumber(scaleWeight, 2)} <span className="text-[var(--text-muted)] text-[16px]">lbs</span>
+                </div>
+                <label className="flex items-center text-[var(--text-secondary)] text-xs gap-2">
                   <input
+                    checked={autoCapture}
+                    type="checkbox"
+                    onChange={(event) => setAutoCapture(event.target.checked)}
+                  />
+                  Auto-capture first stable reading
+                </label>
+                <label className="grid gap-2 text-[var(--text-secondary)] text-xs">
+                  Manual override
+                  <input
+                    className="bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[38px] py-2 px-[10px]"
                     min="0"
-                    step="1"
+                    step="0.01"
                     type="number"
-                    value={litterSize}
-                    onChange={(event) => setLitterSize(event.target.value)}
+                    value={feedWeight}
+                    onChange={(event) => setFeedWeight(event.target.value)}
                   />
                 </label>
               </div>
-              <label className="field">
-                <span>Notes</span>
-                <input
-                  maxLength={500}
-                  type="text"
-                  value={litterNotes}
-                  onChange={(event) => setLitterNotes(event.target.value)}
-                />
-              </label>
-            </>
+            )}
+
+            <p className="text-[var(--text-muted)] text-xs m-0">
+              Feed remaining: {currentFeed ? `${formatNumber(currentFeed.current_on_hand)} ${currentFeed.unit}` : "Select feed"}
+            </p>
+          </ScaleSection>
+
+          <ScaleSection title="Water">
+            <div className="flex items-center gap-3">
+              <input
+                className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[28px] max-w-[150px] outline-none py-1 px-0"
+                min="0"
+                placeholder="0.0"
+                step="0.1"
+                type="number"
+                value={waterConsumed}
+                onChange={(event) => setWaterConsumed(event.target.value)}
+              />
+              <span className="text-[var(--text-muted)]">gal</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 5, 10].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[30px] px-3 py-1 text-xs font-mono hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                  onClick={() => setWaterConsumed(String(amt))}
+                >
+                  {amt} gal
+                </button>
+              ))}
+            </div>
+          </ScaleSection>
+
+          {showEggs ? (
+            <ScaleSection title="Egg Collection">
+              <div className="flex items-center gap-3">
+                <button
+                  className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                  type="button"
+                  onClick={() => setEggCount(Math.max(Number(eggCount || 0) - 1, 0))}
+                >
+                  -
+                </button>
+                <span className="number-font text-[var(--text-primary)] text-[28px] min-w-[54px] text-center">{eggCount || 0}</span>
+                <button
+                  className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                  type="button"
+                  onClick={() => setEggCount(Number(eggCount || 0) + 1)}
+                >
+                  +
+                </button>
+              </div>
+              <button
+                className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
+                type="button"
+                onClick={() => setProductionSkipped(true)}
+              >
+                Skip production data {"→"}
+              </button>
+            </ScaleSection>
           ) : null}
-          <button
-            className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
-            type="button"
-            onClick={() => setProductionSkipped(true)}
-          >
-            Skip for now {"→"}
-          </button>
-        </ScaleSection>
-      ) : null}
 
-      {showMilk ? (
-        <ScaleSection title="Milk Production">
-          <p className="text-[var(--text-muted)] text-xs m-0">🥛 Milk tracking coming soon</p>
-        </ScaleSection>
-      ) : null}
+          {showLitter ? (
+            <ScaleSection title={`Litter / ${currentAnimalClass.youngTerm}`}>
+              <label className="flex items-center gap-2 text-[var(--text-secondary)] text-sm">
+                <input
+                  checked={birthsToday}
+                  type="checkbox"
+                  onChange={(event) => {
+                    setBirthsToday(event.target.checked);
+                    if (!event.target.checked) {
+                      setLitterCount("");
+                      setLitterSize("");
+                      setLitterNotes("");
+                    }
+                  }}
+                />
+                Births Today?
+              </label>
+              {birthsToday ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="field">
+                      <span>Litters born</span>
+                      <input
+                        min="0"
+                        step="1"
+                        type="number"
+                        value={litterCount}
+                        onChange={(event) => setLitterCount(event.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>{currentAnimalClass.youngTerm} born</span>
+                      <input
+                        min="0"
+                        step="1"
+                        type="number"
+                        value={litterSize}
+                        onChange={(event) => setLitterSize(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label className="field">
+                    <span>Notes</span>
+                    <input
+                      maxLength={500}
+                      type="text"
+                      value={litterNotes}
+                      onChange={(event) => setLitterNotes(event.target.value)}
+                    />
+                  </label>
+                </>
+              ) : null}
+              <button
+                className="bg-transparent border-0 text-[var(--text-secondary)] p-0 text-left"
+                type="button"
+                onClick={() => setProductionSkipped(true)}
+              >
+                Skip for now {"→"}
+              </button>
+            </ScaleSection>
+          ) : null}
 
-      {showWorking ? (
-        <ScaleSection title="Working Animal">
-          <p className="text-[var(--text-muted)] text-xs m-0">🛡️ Guardian — no production metrics tracked</p>
-        </ScaleSection>
-      ) : null}
+          {showMilk ? (
+            <ScaleSection title="Milk Production">
+              <p className="text-[var(--text-muted)] text-xs m-0">🥛 Milk tracking coming soon</p>
+            </ScaleSection>
+          ) : null}
 
-      <ScaleSection title="Observations">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] text-[var(--text-muted)]">Log anything unusual about this flock</span>
-          {observations.length > 0 && (
-            <span className="badge badge-xs font-mono bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]">
-              {observations.length} logged
-            </span>
-          )}
-        </div>
+          {showWorking ? (
+            <ScaleSection title="Working Animal">
+              <p className="text-[var(--text-muted)] text-xs m-0">🛡️ Guardian — no production metrics tracked</p>
+            </ScaleSection>
+          ) : null}
 
-        {editingObs && (
-          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4 mb-1">
-            <ObservationEntry
-              compact={true}
-              flockId={currentFlock?.flock_id}
-              animals={flockAnimals}
-              editingObs={editingObs}
-              userId={userId}
-              onSave={(updated) => {
-                const animal = flockAnimals.find(a => a.id === updated.animal_id);
-                setObservations(prev =>
-                  prev.map(o => o.id === updated.id ? {
-                    ...updated,
-                    animals: animal ? { id: animal.id, identifier: animal.identifier } : null,
-                  } : o)
-                );
-                setEditingObs(null);
-              }}
-              onCancel={() => setEditingObs(null)}
-            />
-          </div>
-        )}
-
-        {observations.map((obs) => (
-          <ObservationCard
-            key={obs.id}
-            obs={obs}
-            showFlock={false}
-            compact={true}
-            onEdit={(o) => { setShowAddObs(false); setEditingObs(o); }}
-            onDelete={async (obsId) => {
-              await deleteObservation(obsId);
-              setObservations(prev => prev.filter(o => o.id !== obsId));
-            }}
-          />
-        ))}
-
-        {!editingObs && !showAddObs ? (
-          <button
-            type="button"
-            onClick={() => setShowAddObs(true)}
-            className="btn btn-sm btn-ghost w-full font-mono border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
-          >
-            + Add observation
-          </button>
-        ) : !editingObs ? (
-          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
-            <ObservationEntry
-              compact={true}
-              flockId={currentFlock?.flock_id}
-              animals={flockAnimals}
-              userId={userId}
-              onSave={(obs) => {
-                const animal = flockAnimals.find(a => a.id === obs.animal_id);
-                setObservations(prev => [...prev, {
-                  ...obs,
-                  animals: animal ? { id: animal.id, identifier: animal.identifier } : null,
-                }]);
-                setShowAddObs(false);
-              }}
-              onCancel={() => setShowAddObs(false)}
-            />
-          </div>
-        ) : null}
-      </ScaleSection>
-
-      <div className="border-t border-[rgba(46,125,50,0.55)] pt-4 mt-1">
-        <button
-          type="button"
-          className="font-mono text-xs text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors flex items-center gap-1"
-          onClick={() => setShowCostDetails(!showCostDetails)}
-        >
-          {showCostDetails ? "▾" : "▸"} {showCostDetails ? "Hide" : "Show"} cost details
-        </button>
-        {showCostDetails && (
-          <div className="grid grid-cols-3 gap-2 mt-2">
-            <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
-              <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">lbs/bird</p>
-              <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
-                {effectiveWeight > 0 && adjustedHeadcount > 0 ? formatNumber(weightPerBird, 3) : "—"}
-              </p>
+          <ScaleSection title="Observations">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-[var(--text-muted)]">Log anything unusual about this flock</span>
+              {observations.length > 0 && (
+                <span className="badge badge-xs font-mono bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]">
+                  {observations.length} logged
+                </span>
+              )}
             </div>
-            <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
-              <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">total cost</p>
-              <p className="font-mono text-sm text-[var(--accent-primary)] font-bold m-0">
-                {effectiveWeight > 0 && currentFeed ? formatMoney(costTotal) : "—"}
-              </p>
-            </div>
-            <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
-              <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">cost/bird</p>
-              <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
-                {effectiveWeight > 0 && currentFeed && adjustedHeadcount > 0 ? formatMoney(costPerBird) : "—"}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {!isDailyMode ? (
-        <div className="grid gap-1">
-          {!canLog && !saving && blockReason && (
-            <span className="font-mono text-[11px] text-[var(--accent-warn)] text-center">{blockReason}</span>
-          )}
-          <button className="primary-button w-full" disabled={!canLog || saving} type="button" onClick={onQuickSubmit}>
-            {saving ? "Logging..." : "Log Feeding"}
-          </button>
-        </div>
-      ) : null}
+            {editingObs && (
+              <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4 mb-1">
+                <ObservationEntry
+                  compact={true}
+                  flockId={currentFlock?.flock_id}
+                  animals={flockAnimals}
+                  editingObs={editingObs}
+                  userId={userId}
+                  onSave={(updated) => {
+                    const animal = flockAnimals.find(a => a.id === updated.animal_id);
+                    setObservations(prev =>
+                      prev.map(o => o.id === updated.id ? {
+                        ...updated,
+                        animals: animal ? { id: animal.id, identifier: animal.identifier } : null,
+                      } : o)
+                    );
+                    setEditingObs(null);
+                  }}
+                  onCancel={() => setEditingObs(null)}
+                />
+              </div>
+            )}
+
+            {observations.map((obs) => (
+              <ObservationCard
+                key={obs.id}
+                obs={obs}
+                showFlock={false}
+                compact={true}
+                onEdit={(o) => { setShowAddObs(false); setEditingObs(o); }}
+                onDelete={async (obsId) => {
+                  await deleteObservation(obsId);
+                  setObservations(prev => prev.filter(o => o.id !== obsId));
+                }}
+              />
+            ))}
+
+            {!editingObs && !showAddObs ? (
+              <button
+                type="button"
+                onClick={() => setShowAddObs(true)}
+                className="btn btn-sm btn-ghost w-full font-mono border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+              >
+                + Add observation
+              </button>
+            ) : !editingObs ? (
+              <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                <ObservationEntry
+                  compact={true}
+                  flockId={currentFlock?.flock_id}
+                  animals={flockAnimals}
+                  userId={userId}
+                  onSave={(obs) => {
+                    const animal = flockAnimals.find(a => a.id === obs.animal_id);
+                    setObservations(prev => [...prev, {
+                      ...obs,
+                      animals: animal ? { id: animal.id, identifier: animal.identifier } : null,
+                    }]);
+                    setShowAddObs(false);
+                  }}
+                  onCancel={() => setShowAddObs(false)}
+                />
+              </div>
+            ) : null}
+          </ScaleSection>
+
+          <div className="border-t border-[rgba(46,125,50,0.55)] pt-4 mt-1">
+            <button
+              type="button"
+              className="font-mono text-xs text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors flex items-center gap-1"
+              onClick={() => setShowCostDetails(!showCostDetails)}
+            >
+              {showCostDetails ? "▾" : "▸"} {showCostDetails ? "Hide" : "Show"} cost details
+            </button>
+            {showCostDetails && (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
+                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">lbs/bird</p>
+                  <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
+                    {effectiveWeight > 0 && adjustedHeadcount > 0 ? formatNumber(weightPerBird, 3) : "—"}
+                  </p>
+                </div>
+                <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
+                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">total cost</p>
+                  <p className="font-mono text-sm text-[var(--accent-primary)] font-bold m-0">
+                    {effectiveWeight > 0 && currentFeed ? formatMoney(costTotal) : "—"}
+                  </p>
+                </div>
+                <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
+                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">cost/bird</p>
+                  <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
+                    {effectiveWeight > 0 && currentFeed && adjustedHeadcount > 0 ? formatMoney(costPerBird) : "—"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!isDailyMode ? (
+            <div className="grid gap-1">
+              {!canLog && !saving && blockReason && (
+                <span className="font-mono text-[11px] text-[var(--accent-warn)] text-center">{blockReason}</span>
+              )}
+              <button className="primary-button w-full" disabled={!canLog || saving} type="button" onClick={onQuickSubmit}>
+                {saving ? "Logging..." : "Log Feeding"}
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }
