@@ -747,19 +747,41 @@ function FeedAssignModal({ flock, feedTypes, selectedFeedIds, setSelectedFeedIds
   }
 
   return (
-    <dialog className="modal modal-open" style={{ zIndex: 200 }}>
-      <div className="modal-box bg-[var(--bg-surface)] border border-[var(--border)]">
-        <h3 className="display-font text-xl text-[var(--text-primary)] mb-4">
-          Assign Feeds to {flock?.name}
-        </h3>
-        <div className="grid gap-1">
+    <div
+      className="modal-backdrop farm-setup-feed-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        aria-modal="true"
+        className="modal-card farm-setup-feed-card"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3 className="display-font text-[24px] leading-none text-[var(--text-primary)] m-0">
+            Assign Feeds to {flock?.name}
+          </h3>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+            aria-label="Close feed assignment modal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="grid gap-2">
           {feedTypes.length === 0 ? (
             <p className="font-mono text-sm text-[var(--text-muted)] text-center py-4">
               No feed types created yet. Add feeds in the Feed Types section below.
             </p>
           ) : feedTypes.map(feed => (
             <label key={feed.id}
-              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[var(--bg-elevated)] transition-colors">
+              className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--bg-base)] cursor-pointer hover:border-[var(--accent-primary)] transition-colors">
               <input
                 type="checkbox"
                 checked={selectedFeedIds.includes(feed.id)}
@@ -781,60 +803,130 @@ function FeedAssignModal({ flock, feedTypes, selectedFeedIds, setSelectedFeedIds
             </label>
           ))}
         </div>
-        <div className="flex gap-2 mt-4">
+
+        <div className="modal-actions">
           <button type="button" onClick={onClose}
-            className="btn btn-sm btn-ghost font-mono border border-[var(--border)] flex-1">
+            className="secondary-button flex-1">
             Cancel
           </button>
           <button type="button" onClick={handleSave} disabled={saving}
-            className="btn btn-sm font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none flex-1 disabled:opacity-50">
+            className="primary-button flex-1 disabled:opacity-50">
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      </section>
+    </div>
   );
 }
 
 function FeedTypeEditor({ draft, editing, feedType, onCancel, onChange, onDelete, onEdit, onSave }) {
   const source = editing ? draft : feedType;
+  const costPerUnit = Number(source.cost_per_lb ?? source.cost_per_unit ?? 0).toFixed(4);
+
   return (
-    <div className="settings-edit-card">
-      <div className="settings-edit-grid feed-type-grid">
-        <label className="field">
+    <div className="bg-[var(--bg-base)] border border-[rgba(46,125,50,0.65)] rounded-lg p-4 grid gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <label className="field flex-1 min-w-0">
           <span>Name</span>
-          <input disabled={!editing} value={source.name || ""} onChange={e => onChange("name", e.target.value)} />
+          {editing ? (
+            <input value={source.name || ""} onChange={e => onChange("name", e.target.value)} />
+          ) : (
+            <span className="font-mono text-lg text-[var(--text-primary)] font-bold">{source.name || "Unnamed feed"}</span>
+          )}
         </label>
-        <label className="field">
-          <span>Unit</span>
-          <select disabled={!editing} value={source.unit || "lbs"} onChange={e => onChange("unit", e.target.value)}>
-            <option value="lbs">lbs</option>
-            <option value="kg">kg</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>Bag weight</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.bag_weight ?? 50} onChange={e => onChange("bag_weight", e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Bag price</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.bag_price ?? 0} onChange={e => onChange("bag_price", e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Cost/lb</span>
-          <input disabled value={Number(source.cost_per_lb ?? source.cost_per_unit ?? 0).toFixed(4)} />
-        </label>
-        <label className="field">
-          <span>On hand</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.current_on_hand ?? 0} onChange={e => onChange("current_on_hand", e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Par</span>
-          <input disabled={!editing} min="0" step="0.01" type="number" value={source.par_level ?? 0} onChange={e => onChange("par_level", e.target.value)} />
-        </label>
+
+        <div className="settings-actions">
+          {editing ? (
+            <>
+              <button className="icon-button" type="button" onClick={onSave} aria-label="Save feed type">
+                <Save size={16} />
+              </button>
+              <button className="icon-button" type="button" onClick={onCancel} aria-label="Cancel feed type edit">
+                <X size={16} />
+              </button>
+            </>
+          ) : (
+            <button className="icon-button" type="button" onClick={onEdit} aria-label={`Edit ${feedType.name}`}>
+              <Pencil size={16} />
+            </button>
+          )}
+          <button className="icon-button danger" type="button" onClick={onDelete} aria-label={`Delete ${feedType.name}`}>
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
-      <RowActions editing={editing} onCancel={onCancel} onDelete={onDelete} onEdit={onEdit} onSave={onSave} />
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
+        <FeedTypeField
+          editing={editing}
+          label="Unit"
+          select
+          value={source.unit || "lbs"}
+          onChange={value => onChange("unit", value)}
+        />
+        <FeedTypeField
+          editing={editing}
+          label="Bag weight"
+          numeric
+          value={source.bag_weight ?? 50}
+          onChange={value => onChange("bag_weight", value)}
+        />
+        <FeedTypeField
+          editing={editing}
+          label="Bag price"
+          numeric
+          value={source.bag_price ?? 0}
+          onChange={value => onChange("bag_price", value)}
+        />
+        <ReadOnlyMetric label="Cost/lb" value={costPerUnit} />
+        <FeedTypeField
+          editing={editing}
+          label="On hand"
+          numeric
+          value={source.current_on_hand ?? 0}
+          onChange={value => onChange("current_on_hand", value)}
+        />
+        <FeedTypeField
+          editing={editing}
+          label="Par"
+          numeric
+          value={source.par_level ?? 0}
+          onChange={value => onChange("par_level", value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FeedTypeField({ editing, label, numeric = false, onChange, select = false, value }) {
+  return (
+    <label className="field min-w-0">
+      <span>{label}</span>
+      {editing && select ? (
+        <select value={value} onChange={event => onChange(event.target.value)}>
+          <option value="lbs">lbs</option>
+          <option value="kg">kg</option>
+        </select>
+      ) : editing ? (
+        <input
+          min={numeric ? "0" : undefined}
+          step={numeric ? "0.01" : undefined}
+          type={numeric ? "number" : "text"}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+        />
+      ) : (
+        <span className="font-mono text-base text-[var(--text-primary)]">{value}</span>
+      )}
+    </label>
+  );
+}
+
+function ReadOnlyMetric({ label, value }) {
+  return (
+    <div className="field min-w-0">
+      <span>{label}</span>
+      <span className="font-mono text-base text-[var(--text-primary)]">{value}</span>
     </div>
   );
 }
