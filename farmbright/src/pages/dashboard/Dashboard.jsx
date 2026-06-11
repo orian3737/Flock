@@ -7,7 +7,6 @@ import { FarmContext } from "../../context/FarmContext";
 import { dismissInventoryAlert, getDashboardOverview } from "../../services/dashboardApi";
 import { getTodayObservations, getOpenFollowUps, resolveFollowUp } from "../../services/observationsApi";
 import { OBSERVATION_CATEGORIES } from "../../utils/animalClass";
-import ObservationCard from "../../components/ObservationCard";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" });
 const numberFormatter = new Intl.NumberFormat("en-US");
@@ -70,6 +69,18 @@ function Dashboard() {
     getTodayObservations(userId).then(setTodayObs).catch(() => {});
     getOpenFollowUps(userId).then(setFollowUps).catch(() => {});
   }, [userId]);
+
+  const todayObsByFlock = useMemo(() => {
+    const map = {};
+    for (const obs of todayObs) {
+      const id = obs.flock_id;
+      if (!map[id]) map[id] = { flock: obs.flocks, observations: [] };
+      map[id].observations.push(obs);
+    }
+    return Object.values(map).sort((a, b) =>
+      (a.flock?.name || '').localeCompare(b.flock?.name || '')
+    );
+  }, [todayObs]);
 
   const today     = overview?.today || {};
   const yesterday = overview?.yesterday || {};
@@ -390,13 +401,68 @@ function Dashboard() {
               View all →
             </button>
           </div>
-          <div className="grid gap-2">
-            {todayObs.map((obs) => (
-              <ObservationCard
-                key={obs.id}
-                obs={obs}
-                showFlock={true}
-              />
+          <div className="grid gap-3">
+            {todayObsByFlock.map(({ flock, observations }) => (
+              <div key={flock?.id} className="rounded-xl overflow-hidden border border-[var(--border)]">
+                {/* Flock header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-[var(--bg-elevated)] border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{flock?.breeds?.animal_types?.emoji || '🐾'}</span>
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">{flock?.name}</span>
+                    {flock?.breeds?.name && (
+                      <span className="font-mono text-xs text-[var(--text-muted)]">· {flock.breeds.name}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {observations.some(o => o.severity === 'urgent') && (
+                      <span className="badge badge-xs font-mono bg-[var(--accent-danger)] text-white border-none">🚨 Urgent</span>
+                    )}
+                    {!observations.some(o => o.severity === 'urgent') && observations.some(o => o.severity === 'concern') && (
+                      <span className="badge badge-xs font-mono bg-[var(--accent-warn)] text-[var(--bg-base)] border-none">⚠ Concern</span>
+                    )}
+                    <span className="font-mono text-[10px] text-[var(--text-muted)]">{observations.length} obs</span>
+                  </div>
+                </div>
+                {/* Observation rows */}
+                <div className="divide-y divide-[var(--border)] bg-[var(--bg-surface)]">
+                  {observations.map(obs => (
+                    <div key={obs.id} className={`px-4 py-3 border-l-4 ${
+                      obs.severity === 'urgent'  ? 'border-l-[var(--accent-danger)]'
+                      : obs.severity === 'concern' ? 'border-l-[var(--accent-warn)]'
+                      : 'border-l-transparent'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-[var(--text-primary)] flex items-center gap-1">
+                          {OBSERVATION_CATEGORIES.find(c => c.key === obs.category)?.emoji}
+                          {OBSERVATION_CATEGORIES.find(c => c.key === obs.category)?.label}
+                        </span>
+                        {obs.animals && (
+                          <span className="badge badge-xs font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none">
+                            🐾 {obs.animals.identifier}
+                          </span>
+                        )}
+                        {obs.follow_up_needed && !obs.follow_up_resolved && (
+                          <span className="badge badge-xs font-mono border border-[var(--accent-warn)] text-[var(--accent-warn)]">
+                            Follow-up
+                          </span>
+                        )}
+                      </div>
+                      {obs.selected_options?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {obs.selected_options.map(opt => (
+                            <span key={opt} className="badge badge-sm font-mono bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border)]">
+                              {opt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {obs.detail && (
+                        <p className="font-mono text-xs text-[var(--text-muted)] leading-relaxed m-0">{obs.detail}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </section>
