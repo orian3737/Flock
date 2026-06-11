@@ -5,6 +5,7 @@ import { CLASS_CONFIG, SPECIES_MAP } from "../../utils/animalClass";
 import { useAuth } from "../../context/AuthContext";
 import CustomSpeciesForm from "../../components/CustomSpeciesForm";
 import InlineFeedback from "../../components/InlineFeedback";
+import { supabase } from "../../services/supabaseClient";
 import {
   createBreed,
   createFeedAssignment,
@@ -40,6 +41,7 @@ function FarmSetup() {
   const [editingBreedName, setEditingBreedName] = useState("");
   const [newBreedName, setNewBreedName] = useState({});
   const [showCustomForm, setShowCustomForm] = useState(false);
+  const [newFeed, setNewFeed] = useState({ name: '', unit: 'lbs', bag_weight: '', bag_price: '', on_hand: '0', par_level: '50' });
 
   async function loadSummary() {
     if (!profile?.id) return;
@@ -188,6 +190,29 @@ function FarmSetup() {
       if (await loadSummary()) setFeedback({ type: "success", message: "Breed deleted." });
     } catch (err) {
       setFeedback({ type: "error", message: formatError(err) });
+    }
+  }
+
+  async function handleAddFeedType() {
+    if (!newFeed.name.trim() || !newFeed.bag_weight || !newFeed.bag_price) return;
+    const costPerUnit = parseFloat(newFeed.bag_price) / parseFloat(newFeed.bag_weight);
+    setFeedback(null);
+    try {
+      const { error } = await supabase.from('feed_types').insert({
+        user_id:         profile.id,
+        name:            newFeed.name.trim(),
+        unit:            newFeed.unit,
+        bag_weight:      parseFloat(newFeed.bag_weight),
+        bag_price:       parseFloat(newFeed.bag_price),
+        cost_per_unit:   isNaN(costPerUnit) ? 0 : costPerUnit,
+        current_on_hand: parseFloat(newFeed.on_hand) || 0,
+        par_level:       parseFloat(newFeed.par_level) || 50,
+      });
+      if (error) throw error;
+      setNewFeed({ name: '', unit: 'lbs', bag_weight: '', bag_price: '', on_hand: '0', par_level: '50' });
+      if (await loadSummary()) setFeedback({ type: 'success', message: 'Feed type added.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: formatError(err) });
     }
   }
 
@@ -419,6 +444,80 @@ function FarmSetup() {
             <strong className="display-font text-[28px] leading-none text-[#e8f5e9]">Feed Types</strong>
           </div>
           <div className="settings-panel-body">
+            <div className="settings-edit-card" style={{ borderStyle: 'dashed', marginBottom: '8px' }}>
+              <p className="font-mono text-[11px] text-[var(--text-muted)] uppercase tracking-wide mb-3">+ Add Feed Type</p>
+              <div className="settings-edit-grid feed-type-grid">
+                <label className="field">
+                  <span>Name</span>
+                  <input
+                    placeholder="e.g. Layer Pellets"
+                    value={newFeed.name}
+                    onChange={e => setNewFeed(f => ({ ...f, name: e.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>Unit</span>
+                  <select value={newFeed.unit} onChange={e => setNewFeed(f => ({ ...f, unit: e.target.value }))}>
+                    <option value="lbs">lbs</option>
+                    <option value="kg">kg</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Bag weight</span>
+                  <input
+                    min="0" step="0.01" type="number"
+                    placeholder="50"
+                    value={newFeed.bag_weight}
+                    onChange={e => setNewFeed(f => ({ ...f, bag_weight: e.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>Bag price ($)</span>
+                  <input
+                    min="0" step="0.01" type="number"
+                    placeholder="0.00"
+                    value={newFeed.bag_price}
+                    onChange={e => setNewFeed(f => ({ ...f, bag_price: e.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>Cost/{newFeed.unit}</span>
+                  <input
+                    disabled
+                    value={
+                      newFeed.bag_weight && newFeed.bag_price
+                        ? (parseFloat(newFeed.bag_price) / parseFloat(newFeed.bag_weight)).toFixed(4)
+                        : '—'
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>On hand</span>
+                  <input
+                    min="0" step="0.01" type="number"
+                    value={newFeed.on_hand}
+                    onChange={e => setNewFeed(f => ({ ...f, on_hand: e.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>Par level</span>
+                  <input
+                    min="0" step="0.01" type="number"
+                    value={newFeed.par_level}
+                    onChange={e => setNewFeed(f => ({ ...f, par_level: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                disabled={!newFeed.name.trim() || !newFeed.bag_weight || !newFeed.bag_price}
+                onClick={handleAddFeedType}
+                className="primary-button mt-3 disabled:opacity-40"
+              >
+                <Plus size={14} /> Add Feed Type
+              </button>
+            </div>
+
             <div className="feed-type-editor-list">
               {summary.feed_types.map(feedType => (
                 <FeedTypeEditor
@@ -466,7 +565,8 @@ function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
 
 function FlockEditor({ draft, editing, feedTypes, flock, onAssign, onCancel, onChange, onDelete, onEdit, onSave, onUnassign }) {
   const source = editing ? draft : flock;
-  const assignedIds = new Set((flock.feed_assignments || []).map(a => a.feed_type_id));
+  const assignedFeeds = flock.feed_assignments || [];
+  const [showFeedModal, setShowFeedModal] = useState(false);
   return (
     <div className="settings-edit-card">
       <div className="settings-edit-grid">
@@ -491,34 +591,125 @@ function FlockEditor({ draft, editing, feedTypes, flock, onAssign, onCancel, onC
       </div>
 
       <div className="mt-2">
-        <span className="font-mono text-[11px] text-[var(--text-muted)] uppercase tracking-wide">Assigned Feeds</span>
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {(feedTypes || []).length === 0 && (
-            <span className="font-mono text-xs text-[var(--text-muted)]">No feed types created yet</span>
-          )}
-          {(feedTypes || []).map(ft => {
-            const assigned = assignedIds.has(ft.id);
-            const assignment = (flock.feed_assignments || []).find(a => a.feed_type_id === ft.id);
-            return (
-              <button
-                key={ft.id}
-                type="button"
-                onClick={() => assigned ? onUnassign(assignment.id) : onAssign(ft.id)}
-                className={`font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                  assigned
-                    ? 'bg-[var(--accent-green)] border-[var(--accent-green)] text-[var(--bg-base)]'
-                    : 'bg-transparent border-[var(--border)] text-[var(--text-muted)]'
-                }`}
-              >
-                {ft.name}
-              </button>
-            );
-          })}
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-mono text-[11px] text-[var(--text-muted)] uppercase tracking-wide">Assigned Feeds</span>
+          <button
+            type="button"
+            onClick={() => setShowFeedModal(true)}
+            className="font-mono text-xs text-[var(--accent-primary)] hover:underline"
+          >
+            Manage →
+          </button>
         </div>
+        {assignedFeeds.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {assignedFeeds.map(a => {
+              const feedName = (feedTypes || []).find(ft => ft.id === a.feed_type_id)?.name || 'Unknown';
+              return (
+                <span key={a.id} className="flex items-center gap-1 px-3 py-1 rounded-full border border-[var(--accent-primary)] bg-[var(--bg-elevated)] font-mono text-xs text-[var(--text-primary)]">
+                  {feedName}
+                  <button
+                    type="button"
+                    onClick={() => onUnassign(a.id)}
+                    className="text-[var(--text-muted)] hover:text-[var(--accent-danger)] ml-1"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-[var(--border)]">
+            <span className="font-mono text-xs text-[var(--text-muted)]">No feeds assigned</span>
+            <button
+              type="button"
+              onClick={() => setShowFeedModal(true)}
+              className="btn btn-xs btn-ghost font-mono border border-[var(--border)] ml-auto text-[var(--accent-primary)]"
+            >
+              + Assign feed
+            </button>
+          </div>
+        )}
+        {showFeedModal && (
+          <FeedAssignModal
+            feedTypes={feedTypes || []}
+            assignedFeeds={assignedFeeds}
+            onAssign={onAssign}
+            onUnassign={onUnassign}
+            onClose={() => setShowFeedModal(false)}
+          />
+        )}
       </div>
 
       <RowActions editing={editing} onCancel={onCancel} onDelete={onDelete} onEdit={onEdit} onSave={onSave} />
     </div>
+  );
+}
+
+function FeedAssignModal({ feedTypes, assignedFeeds, onAssign, onUnassign, onClose }) {
+  const assignedMap = new Map(assignedFeeds.map(a => [a.feed_type_id, a.id]));
+  const [checked, setChecked] = useState(new Set(assignedFeeds.map(a => a.feed_type_id)));
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      for (const ft of feedTypes) {
+        const wasAssigned = assignedMap.has(ft.id);
+        const isChecked = checked.has(ft.id);
+        if (isChecked && !wasAssigned) {
+          await onAssign(ft.id);
+        } else if (!isChecked && wasAssigned) {
+          await onUnassign(assignedMap.get(ft.id));
+        }
+      }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog className="modal modal-open" style={{ zIndex: 200 }}>
+      <div className="modal-box bg-[var(--bg-surface)] border border-[var(--border)]">
+        <h3 className="font-mono text-lg font-bold text-[var(--text-primary)] mb-4">Assign Feeds</h3>
+        <div className="grid gap-1">
+          {feedTypes.length === 0 ? (
+            <p className="font-mono text-xs text-[var(--text-muted)]">No feed types created yet — add one in Feed Types below.</p>
+          ) : feedTypes.map(ft => (
+            <label key={ft.id} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-[var(--bg-elevated)]">
+              <input
+                type="checkbox"
+                checked={checked.has(ft.id)}
+                onChange={e => {
+                  const next = new Set(checked);
+                  if (e.target.checked) next.add(ft.id); else next.delete(ft.id);
+                  setChecked(next);
+                }}
+                className="checkbox checkbox-sm [--chkbg:var(--accent-primary)]"
+              />
+              <span className="font-mono text-sm text-[var(--text-primary)] flex-1">{ft.name}</span>
+              <span className="font-mono text-xs text-[var(--text-muted)]">{ft.unit}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onClose} className="btn btn-sm btn-ghost font-mono border border-[var(--border)] flex-1">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="btn btn-sm font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none flex-1 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+      <div className="modal-backdrop" onClick={onClose} />
+    </dialog>
   );
 }
 
