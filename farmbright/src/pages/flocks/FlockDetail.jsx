@@ -164,10 +164,7 @@ function FlockDetail() {
 
   return (
     <section className="grid gap-[18px]">
-      <header
-        className="grid gap-4 items-start"
-        style={{ gridTemplateColumns: "40px minmax(0,1fr) auto" }}
-      >
+      <header className="grid gap-4 items-start grid-cols-[40px_1fr] lg:grid-cols-[40px_minmax(0,1fr)_auto]">
         <button className="icon-button" type="button" onClick={() => navigate("/flocks")} aria-label="Back to flocks">
           <ArrowLeft size={18} />
         </button>
@@ -184,27 +181,31 @@ function FlockDetail() {
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 justify-end">
+        <div className="col-span-2 lg:col-span-1 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:justify-end lg:items-start">
+          <button
+            className="primary-button w-full h-12 text-base lg:w-auto lg:h-auto lg:text-sm"
+            type="button"
+            onClick={() => navigate(`/scale-house?mode=quick&flock=${flock.id}`)}
+          >
+            Start Feeding
+          </button>
           {showProduction && (
-            <button className="secondary-button" type="button" onClick={() => setModal("production")}>
+            <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setModal("production")}>
               Log Production
             </button>
           )}
           {animalClass.litterTracking && (
-            <button className="secondary-button" type="button" onClick={() => setShowLitterModal(true)}>
+            <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setShowLitterModal(true)}>
               Log Litter
             </button>
           )}
           {animalClass.producesYoung && (
-            <button className="secondary-button" type="button" onClick={() => setModal("young_sale")}>
+            <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setModal("young_sale")}>
               Sell {animalClass.youngTerm}
             </button>
           )}
-          <button className="secondary-button" type="button" onClick={() => setModal("casualty")}>
+          <button className="secondary-button w-full h-12 lg:w-auto lg:h-auto" type="button" onClick={() => setModal("casualty")}>
             Log Headcount Change
-          </button>
-          <button className="primary-button" type="button" onClick={() => navigate(`/scale-house?mode=quick&flock=${flock.id}`)}>
-            Start Feeding
           </button>
         </div>
       </header>
