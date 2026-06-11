@@ -34,6 +34,7 @@ import {
   logSession,
   openScaleStream,
 } from "../../services/scaleHouseApi";
+import { supabase } from "../../services/supabaseClient";
 
 const todayString = () => new Date().toISOString().slice(0, 10);
 
@@ -476,6 +477,7 @@ function ScaleHouse() {
     setDone,
     loadSessionData,
     navigate,
+    userId,
   };
 
   const completionBreakdown = useMemo(() => eventsData.breakdown || [], [eventsData.breakdown]);
@@ -1032,20 +1034,175 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
 
 // ─── Edit Panel ───────────────────────────────────────────────────────────────
 
-function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyMode, setCurrentIndex, setDone, loadSessionData, onClose, navigate }) {
+function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyMode, setCurrentIndex, setDone, loadSessionData, userId, onClose, navigate }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const isToday = date === todayString();
+  const [editingFlock, setEditingFlock] = useState(null);
+  const [editForm, setEditForm] = useState({
+    feedTypeId: null, feedWeight: '', inputMethod: 'manual', water: '',
+    eggCount: 0, litterCount: 0, litterSize: 0, litterNotes: '',
+  });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editSuccess, setEditSuccess] = useState('');
+  const [editError, setEditError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editObs, setEditObs] = useState([]);
+  const [showAddEditObs, setShowAddEditObs] = useState(false);
+  const [editingObs, setEditingObs] = useState(null);
+  const [editFlockAnimals, setEditFlockAnimals] = useState([]);
+
+  // Reset to Stage 1 list whenever the date changes
+  useEffect(() => { setEditingFlock(null); }, [date]);
+
+  // Pre-fill form + load DB observations when a flock is selected
+  useEffect(() => {
+    if (!editingFlock) { setEditObs([]); setEditFlockAnimals([]); return; }
+    const { feedingEvent, productionLog, queueFlock } = editingFlock;
+    setEditForm({
+      feedTypeId:  feedingEvent?.feed_types?.id ?? null,
+      feedWeight:  String(feedingEvent?.total_weight || ''),
+      inputMethod: feedingEvent?.input_method || 'manual',
+      water:       productionLog?.water_consumed != null ? String(productionLog.water_consumed) : '',
+      eggCount:    productionLog?.egg_count ?? 0,
+      litterCount: productionLog?.litter_count ?? 0,
+      litterSize:  productionLog?.litter_size ?? 0,
+      litterNotes: productionLog?.litter_notes || '',
+    });
+    setEditSuccess('');
+    setEditError('');
+    setConfirmDelete(false);
+    setShowAddEditObs(false);
+    setEditingObs(null);
+    supabase
+      .from('observation_logs')
+      .select('*, animals(id, identifier)')
+      .eq('flock_id', feedingEvent.flock_id)
+      .eq('date', date)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setEditObs(data || []))
+      .catch(() => setEditObs([]));
+    if (queueFlock?.individual_tracking_enabled && queueFlock.flock_id) {
+      getFlockAnimals(queueFlock.flock_id).then(setEditFlockAnimals).catch(() => setEditFlockAnimals([]));
+    } else {
+      setEditFlockAnimals([]);
+    }
+  }, [editingFlock?.feedingEvent?.id, date]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const flockMap = useMemo(() => {
+    if (!sessionData) return {};
+    const map = {};
+    for (const feeding of sessionData.feedings || []) {
+      if (!map[feeding.flock_id]) map[feeding.flock_id] = { feeding: null, production: null };
+      map[feeding.flock_id].feeding = feeding;
+    }
+    for (const prod of sessionData.production || []) {
+      if (!map[prod.flock_id]) map[prod.flock_id] = { feeding: null, production: null };
+      map[prod.flock_id].production = prod;
+    }
+    return map;
+  }, [sessionData]);
+
+  const loggedFlockIds = useMemo(() => new Set(Object.keys(flockMap).map(Number)), [flockMap]);
+  const unloggedFlocks = useMemo(() => queue.filter(f => !loggedFlockIds.has(f.flock_id)), [queue, loggedFlockIds]);
+
+  function selectFlock(feedingEvent) {
+    const productionLog = (sessionData?.production || []).find(p => p.flock_id === feedingEvent.flock_id) || null;
+    const queueFlock = queue.find(f => f.flock_id === feedingEvent.flock_id) || null;
+    setEditingFlock({ feedingEvent, productionLog, queueFlock });
+  }
 
   function handleLogNow(flock) {
-    const idx = queue.findIndex((f) => f.flock_id === flock.flock_id);
+    const idx = queue.findIndex(f => f.flock_id === flock.flock_id);
     onClose();
-    if (isDailyMode && idx >= 0) {
-      setCurrentIndex(idx);
-      setDone(false);
-    } else {
-      navigate("/scale-house?mode=daily");
+    if (isDailyMode && idx >= 0) { setCurrentIndex(idx); setDone(false); }
+    else navigate('/scale-house?mode=daily');
+  }
+
+  async function handleSave() {
+    if (!editingFlock) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const { feedingEvent, productionLog, queueFlock } = editingFlock;
+      const weight = Number(editForm.feedWeight) || 0;
+      const headcount = queueFlock?.current_headcount || feedingEvent.flocks?.current_headcount || 1;
+      const feedOption = (queueFlock?.assigned_feeds || []).find(f => f.feed_type_id === Number(editForm.feedTypeId))
+        || { cost_per_unit: feedingEvent.feed_types?.cost_per_unit ?? 0 };
+      const costPerUnit = feedOption.cost_per_unit ?? feedOption.cost_per_lb ?? 0;
+      const newCostTotal = weight * costPerUnit;
+      await updateFeedingEvent(feedingEvent.id, {
+        total_weight:  weight,
+        feed_type_id:  Number(editForm.feedTypeId),
+        weight_per_bird: headcount > 0 ? weight / headcount : 0,
+        cost_total:    newCostTotal,
+        cost_per_bird: headcount > 0 ? newCostTotal / headcount : 0,
+        input_method:  editForm.inputMethod,
+      });
+      if (productionLog) {
+        await updateProductionLog(productionLog.id, {
+          egg_count:      editForm.eggCount || null,
+          water_consumed: editForm.water !== '' ? Number(editForm.water) : null,
+          litter_count:   editForm.litterCount || null,
+          litter_size:    editForm.litterSize || null,
+          litter_notes:   editForm.litterNotes || null,
+        });
+      }
+      await loadSessionData(date);
+      setEditSuccess('Changes saved ✓');
+      setTimeout(() => setEditSuccess(''), 3000);
+      setEditingFlock(null);
+    } catch (err) {
+      setEditError(err.message || 'Failed to save changes.');
+    } finally {
+      setEditSaving(false);
     }
   }
+
+  async function handleDelete() {
+    setEditSaving(true);
+    try {
+      await deleteFeedingEvent(editingFlock.feedingEvent.id);
+      await loadSessionData(date);
+      setEditingFlock(null);
+      setConfirmDelete(false);
+    } catch (err) {
+      setEditError(err.message || 'Failed to delete.');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  // Derived values for Stage 2 edit card
+  const editClassConfig = editingFlock ? (() => {
+    const qf = editingFlock.queueFlock;
+    const cfg = getClassConfig(qf?.class_type || 'other');
+    return {
+      ...cfg,
+      producesEggs:   qf?.produces_eggs  ?? cfg.producesEggs,
+      litterTracking: qf?.produces_young ?? cfg.litterTracking,
+      producesMilk:   qf?.produces_milk  ?? cfg.producesMilk,
+    };
+  })() : null;
+
+  const editFeedOptions = editingFlock ? (() => {
+    const origId   = editingFlock.feedingEvent.feed_types?.id;
+    const origName = editingFlock.feedingEvent.feed_types?.name;
+    const assigned = editingFlock.queueFlock?.assigned_feeds || [];
+    const map = new Map(assigned.map(f => [f.feed_type_id, f]));
+    if (origId && !map.has(origId)) {
+      map.set(origId, { feed_type_id: origId, name: origName, cost_per_unit: editingFlock.feedingEvent.feed_types?.cost_per_unit ?? 0 });
+    }
+    return [...map.values()];
+  })() : [];
+
+  const editCostCalc = editingFlock ? (() => {
+    const weight    = Number(editForm.feedWeight) || 0;
+    const headcount = editingFlock.queueFlock?.current_headcount || editingFlock.feedingEvent.flocks?.current_headcount || 1;
+    const feedOpt   = editFeedOptions.find(f => f.feed_type_id === Number(editForm.feedTypeId));
+    const cpu       = feedOpt?.cost_per_unit ?? feedOpt?.cost_per_lb ?? 0;
+    const total     = weight * cpu;
+    return { total, perBird: headcount > 0 ? total / headcount : 0 };
+  })() : { total: 0, perBird: 0 };
 
   return (
     <>
@@ -1053,12 +1210,18 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
       <aside className="fixed inset-y-0 right-0 z-50 w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-[var(--bg-surface)] sticky top-0 z-10">
-          <h2 className="display-font text-xl leading-none m-0">Edit Day</h2>
+          <div className="flex items-center gap-2">
+            {editingFlock && (
+              <button type="button" onClick={() => setEditingFlock(null)}
+                className="font-mono text-xs text-[var(--text-muted)] hover:text-[var(--accent-primary)] mr-1">
+                ←
+              </button>
+            )}
+            <h2 className="display-font text-xl leading-none m-0">Edit Day</h2>
+          </div>
           <button
             className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-transparent border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            type="button"
-            onClick={onClose}
-            aria-label="Close edit panel"
+            type="button" onClick={onClose} aria-label="Close edit panel"
           >
             <X size={16} />
           </button>
@@ -1072,8 +1235,7 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
             </span>
             <button
               className="font-mono text-xs text-[var(--accent-primary)] hover:underline bg-transparent border-0 p-0 cursor-pointer"
-              type="button"
-              onClick={() => setShowDatePicker((v) => !v)}
+              type="button" onClick={() => setShowDatePicker(v => !v)}
             >
               Change date
             </button>
@@ -1081,10 +1243,8 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
           {showDatePicker && (
             <input
               className="mt-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[36px] py-[7px] px-[10px]"
-              type="date"
-              value={date}
-              max={todayString()}
-              onChange={(e) => { setDate(e.target.value); setShowDatePicker(false); }}
+              type="date" value={date} max={todayString()}
+              onChange={e => { setDate(e.target.value); setShowDatePicker(false); }}
             />
           )}
           {!isToday && (
@@ -1100,282 +1260,300 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
             <div className="flex items-center justify-center py-12">
               <span className="loading loading-spinner text-[var(--accent-primary)]" />
             </div>
+          ) : editingFlock ? (
+            /* ── STAGE 2 — Edit Card ──────────────────────────────────────────── */
+            <div className="grid gap-4">
+              <button type="button" onClick={() => setEditingFlock(null)}
+                className="font-mono text-xs text-[var(--accent-primary)] hover:underline text-left w-fit">
+                ← Back to log
+              </button>
+
+              {/* Flock header */}
+              <div className="bg-[var(--bg-surface)] rounded-xl border-2 border-[var(--accent-primary)] p-4">
+                <p className="font-mono text-[10px] text-[var(--accent-primary)] uppercase tracking-wider m-0 mb-1">Editing:</p>
+                <h2 className="display-font text-2xl leading-none m-0 mb-1 text-[var(--text-primary)]">
+                  {editingFlock.feedingEvent.flocks?.name}
+                </h2>
+                <p className="font-mono text-xs text-[var(--text-muted)] m-0">
+                  {editingFlock.feedingEvent.flocks?.breeds?.name}
+                  {editingFlock.feedingEvent.flocks?.breeds?.animal_types?.name
+                    ? ` · ${editingFlock.feedingEvent.flocks.breeds.animal_types.name}` : ''}
+                </p>
+              </div>
+
+              {/* Feed */}
+              <section className="border-t border-[rgba(46,125,50,0.55)] grid gap-3 pt-4">
+                <h2 className="text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-[13px] font-bold m-0 uppercase">Feed</h2>
+                {editFeedOptions.length > 1 && (
+                  <div className="flex flex-wrap gap-2">
+                    {editFeedOptions.map(f => (
+                      <button key={f.feed_type_id} type="button"
+                        className={["bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2 font-mono text-sm",
+                          Number(editForm.feedTypeId) === f.feed_type_id ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : ""].join(" ")}
+                        onClick={() => setEditForm(prev => ({ ...prev, feedTypeId: f.feed_type_id }))}>
+                        {f.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {editFeedOptions.length === 1 && (
+                  <p className="font-mono text-sm text-[var(--text-secondary)] m-0">{editFeedOptions[0]?.name}</p>
+                )}
+                <label className="flex items-baseline gap-3">
+                  <input
+                    className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[36px] max-w-[220px] outline-none py-1 px-0"
+                    min="0" step="0.01" type="number"
+                    value={editForm.feedWeight}
+                    onChange={e => setEditForm(prev => ({ ...prev, feedWeight: e.target.value }))}
+                  />
+                  <span className="text-[var(--text-muted)]">lbs</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {["manual", "scale"].map(m => (
+                    <button key={m} type="button"
+                      className={["bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[36px] px-3 py-2 font-mono text-sm",
+                        editForm.inputMethod === m ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : ""].join(" ")}
+                      onClick={() => setEditForm(prev => ({ ...prev, inputMethod: m }))}>
+                      {m.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                {editCostCalc.total > 0 && (
+                  <p className="font-mono text-xs text-[var(--text-muted)] m-0">
+                    New cost: {formatMoney(editCostCalc.total)} · {formatMoney(editCostCalc.perBird)}/bird
+                  </p>
+                )}
+              </section>
+
+              {/* Water */}
+              <section className="border-t border-[rgba(46,125,50,0.55)] grid gap-3 pt-4">
+                <h2 className="text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-[13px] font-bold m-0 uppercase">Water</h2>
+                <div className="flex items-center gap-3">
+                  <input
+                    className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[28px] max-w-[150px] outline-none py-1 px-0"
+                    min="0" placeholder="0.0" step="0.1" type="number"
+                    value={editForm.water}
+                    onChange={e => setEditForm(prev => ({ ...prev, water: e.target.value }))}
+                  />
+                  <span className="text-[var(--text-muted)]">gal</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 5, 10].map(amt => (
+                    <button key={amt} type="button"
+                      className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[30px] px-3 py-1 text-xs font-mono hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                      onClick={() => setEditForm(prev => ({ ...prev, water: String(amt) }))}>
+                      {amt} gal
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Egg collection */}
+              {editClassConfig?.producesEggs && (
+                <section className="border-t border-[rgba(46,125,50,0.55)] grid gap-3 pt-4">
+                  <h2 className="text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-[13px] font-bold m-0 uppercase">Egg Collection</h2>
+                  <div className="flex items-center gap-3">
+                    <button type="button"
+                      className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                      onClick={() => setEditForm(prev => ({ ...prev, eggCount: Math.max(Number(prev.eggCount) - 1, 0) }))}>
+                      -
+                    </button>
+                    <span className="number-font text-[var(--text-primary)] text-[28px] min-w-[54px] text-center">{editForm.eggCount}</span>
+                    <button type="button"
+                      className="inline-flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] h-10 w-10 p-0 hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]"
+                      onClick={() => setEditForm(prev => ({ ...prev, eggCount: Number(prev.eggCount) + 1 }))}>
+                      +
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {/* Litter */}
+              {editClassConfig?.litterTracking && (
+                <section className="border-t border-[rgba(46,125,50,0.55)] grid gap-3 pt-4">
+                  <h2 className="text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-[13px] font-bold m-0 uppercase">
+                    Litter / {editClassConfig.youngTerm}
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="field">
+                      <span>Litters born</span>
+                      <input type="number" min="0" value={editForm.litterCount}
+                        onChange={e => setEditForm(prev => ({ ...prev, litterCount: e.target.value }))} />
+                    </label>
+                    <label className="field">
+                      <span>{editClassConfig.youngTerm} born</span>
+                      <input type="number" min="0" value={editForm.litterSize}
+                        onChange={e => setEditForm(prev => ({ ...prev, litterSize: e.target.value }))} />
+                    </label>
+                  </div>
+                  <label className="field">
+                    <span>Notes</span>
+                    <input type="text" maxLength={500} value={editForm.litterNotes}
+                      onChange={e => setEditForm(prev => ({ ...prev, litterNotes: e.target.value }))} />
+                  </label>
+                </section>
+              )}
+
+              {/* Observations */}
+              <section className="border-t border-[rgba(46,125,50,0.55)] grid gap-3 pt-4">
+                <h2 className="text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-[13px] font-bold m-0 uppercase">Observations</h2>
+                {editingObs && (
+                  <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                    <ObservationEntry compact
+                      flockId={editingFlock.feedingEvent.flock_id}
+                      animals={editFlockAnimals}
+                      editingObs={editingObs}
+                      userId={userId}
+                      onSave={updated => { setEditObs(prev => prev.map(o => o.id === updated.id ? updated : o)); setEditingObs(null); }}
+                      onCancel={() => setEditingObs(null)}
+                    />
+                  </div>
+                )}
+                {editObs.map(obs => (
+                  <ObservationCard key={obs.id} obs={obs} showFlock={false} compact
+                    onEdit={o => { setShowAddEditObs(false); setEditingObs(o); }}
+                    onDelete={async obsId => { await deleteObservation(obsId); setEditObs(prev => prev.filter(o => o.id !== obsId)); }}
+                  />
+                ))}
+                {!editingObs && !showAddEditObs ? (
+                  <button type="button" onClick={() => setShowAddEditObs(true)}
+                    className="btn btn-sm btn-ghost w-full font-mono border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]">
+                    + Add observation
+                  </button>
+                ) : !editingObs ? (
+                  <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                    <ObservationEntry compact
+                      flockId={editingFlock.feedingEvent.flock_id}
+                      animals={editFlockAnimals}
+                      userId={userId}
+                      onSave={obs => { setEditObs(prev => [...prev, obs]); setShowAddEditObs(false); }}
+                      onCancel={() => setShowAddEditObs(false)}
+                    />
+                  </div>
+                ) : null}
+              </section>
+
+              {/* Feedback */}
+              {editSuccess && (
+                <div className="bg-[rgba(76,175,80,0.1)] border border-[var(--accent-primary)] rounded-lg px-4 py-2 font-mono text-xs text-[var(--accent-primary)]">
+                  {editSuccess}
+                </div>
+              )}
+              {editError && (
+                <div className="bg-[rgba(198,40,40,0.1)] border border-[rgba(198,40,40,0.4)] rounded-lg px-4 py-2 font-mono text-xs text-[#ef9a9a]">
+                  {editError}
+                </div>
+              )}
+
+              {/* Save */}
+              <button type="button" disabled={editSaving || Number(editForm.feedWeight) <= 0}
+                onClick={handleSave}
+                className="primary-button w-full disabled:opacity-40">
+                {editSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+
+              {/* Delete */}
+              {confirmDelete ? (
+                <div className="flex gap-2">
+                  <button type="button" disabled={editSaving} onClick={handleDelete}
+                    className="bg-[rgba(198,40,40,0.2)] border border-[rgba(198,40,40,0.5)] rounded-lg text-[#ef9a9a] font-mono text-xs py-2 px-4 flex-1 cursor-pointer hover:bg-[rgba(198,40,40,0.3)] disabled:opacity-50">
+                    {editSaving ? '...' : 'Confirm Delete'}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setConfirmDelete(true)}
+                  className="btn btn-ghost font-mono text-[var(--accent-danger)] border border-[var(--accent-danger)] w-full">
+                  Delete this entry
+                </button>
+              )}
+            </div>
           ) : !sessionData || sessionData.feedings.length === 0 ? (
+            /* ── Empty state ───────────────────────────────────────────────────── */
             <div className="grid gap-4 py-8 text-center">
               <p className="font-mono text-sm text-[var(--text-muted)]">No feeding events to edit for this date.</p>
-              {queue.length > 0 && (
+              {unloggedFlocks.length > 0 && (
                 <div className="grid gap-2">
-                  <p className="font-mono text-xs text-[var(--text-muted)] mb-0">Unlogged flocks:</p>
-                  {queue.map((flock) => (
-                    <div key={flock.flock_id} className="flex items-center justify-between bg-[var(--bg-base)] border border-[var(--border)] rounded-lg px-4 py-3">
-                      <span className="font-mono text-sm text-[var(--text-secondary)]">{flock.name}</span>
-                      <button
-                        className="font-mono text-xs text-[var(--accent-primary)] hover:underline bg-transparent border-0 p-0 cursor-pointer"
-                        type="button"
-                        onClick={() => handleLogNow(flock)}
-                      >
-                        Log now →
-                      </button>
+                  <p className="font-mono text-xs text-[var(--text-muted)] uppercase tracking-wider mb-0">Not yet logged</p>
+                  {unloggedFlocks.map(flock => (
+                    <div key={flock.flock_id} onClick={() => handleLogNow(flock)}
+                      className="flex items-center gap-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] border-l-4 border-l-[var(--accent-warn)] hover:border-[var(--accent-primary)] cursor-pointer transition-all">
+                      <span className="text-2xl">{flock.breeds?.animal_types?.emoji || '🐾'}</span>
+                      <div className="flex-1">
+                        <p className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">{flock.name}</p>
+                      </div>
+                      <span className="text-[var(--text-muted)] text-xl">›</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           ) : (
+            /* ── STAGE 1 — Flock selection list ────────────────────────────────── */
             <>
-              {sessionData.feedings.map((event) => {
-                const queueFlock = queue.find((f) => f.flock_id === event.flock_id);
-                const assignedFeeds = queueFlock?.assigned_feeds || [];
-                return (
-                  <FeedingEditForm
-                    key={event.id}
-                    event={event}
-                    assignedFeeds={assignedFeeds}
-                    onSave={async (updates) => {
-                      await updateFeedingEvent(event.id, updates);
-                      loadSessionData(date);
-                    }}
-                    onDelete={async () => {
-                      await deleteFeedingEvent(event.id);
-                      loadSessionData(date);
-                    }}
-                  />
-                );
-              })}
-
-              {sessionData.production.map((log) => {
-                const queueFlock = queue.find((f) => f.flock_id === log.flock_id);
-                const classType = queueFlock?.class_type || 'other';
-                return (
-                  <ProductionEditForm
-                    key={log.id}
-                    log={log}
-                    classType={classType}
-                    onSave={async (updates) => {
-                      await updateProductionLog(log.id, updates);
-                      loadSessionData(date);
-                    }}
-                  />
-                );
-              })}
+              {editSuccess && (
+                <div className="bg-[rgba(76,175,80,0.1)] border border-[var(--accent-primary)] rounded-lg px-4 py-2 font-mono text-xs text-[var(--accent-primary)]">
+                  {editSuccess}
+                </div>
+              )}
+              <div>
+                <p className="font-mono text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">Logged today</p>
+                {sessionData.feedings.map(feedingEvent => {
+                  const ts = feedingEvent.timestamp
+                    ? new Date(feedingEvent.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '';
+                  return (
+                    <div key={feedingEvent.id} onClick={() => selectFlock(feedingEvent)}
+                      className="flex items-center gap-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] hover:border-[var(--accent-primary)] cursor-pointer transition-all mb-3">
+                      <span className="text-2xl">{feedingEvent.flocks?.breeds?.animal_types?.emoji || '🐾'}</span>
+                      <div className="flex-1">
+                        <p className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">{feedingEvent.flocks?.name}</p>
+                        <p className="font-mono text-xs text-[var(--text-muted)] m-0">
+                          {feedingEvent.flocks?.breeds?.name}
+                          {feedingEvent.flocks?.breeds?.animal_types?.name
+                            ? ` · ${feedingEvent.flocks.breeds.animal_types.name}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right flex-none">
+                        <p className="font-mono text-xs text-[var(--text-secondary)] m-0">
+                          {formatNumber(feedingEvent.total_weight, 1)} lbs
+                        </p>
+                        <p className="font-mono text-[10px] text-[var(--text-muted)] m-0">{ts}</p>
+                      </div>
+                      <span className="text-[var(--text-muted)] text-xl flex-none">›</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {unloggedFlocks.length > 0 && (
+                <div>
+                  <p className="font-mono text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">Not yet logged</p>
+                  {unloggedFlocks.map(flock => (
+                    <div key={flock.flock_id} onClick={() => handleLogNow(flock)}
+                      className="flex items-center gap-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] border-l-4 border-l-[var(--accent-warn)] hover:border-[var(--accent-primary)] cursor-pointer transition-all mb-3">
+                      <span className="text-2xl">{flock.breeds?.animal_types?.emoji || '🐾'}</span>
+                      <div className="flex-1">
+                        <p className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">{flock.name}</p>
+                        <p className="font-mono text-xs text-[var(--text-muted)] m-0">
+                          {flock.breeds?.name}
+                          {flock.breeds?.animal_types?.name ? ` · ${flock.breeds.animal_types.name}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right flex-none">
+                        <span className="font-mono text-xs bg-[rgba(255,143,0,0.15)] text-[var(--accent-warn)] px-2 py-0.5 rounded-full">
+                          Not logged
+                        </span>
+                      </div>
+                      <span className="text-[var(--text-muted)] text-xl flex-none">›</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
       </aside>
     </>
-  );
-}
-
-function FeedingEditForm({ event, assignedFeeds, onSave, onDelete }) {
-  const headcount = event.flocks?.current_headcount || 1;
-
-  const originalFeed = event.feed_types?.id
-    ? { feed_type_id: event.feed_types.id, name: event.feed_types.name, cost_per_unit: event.feed_types.cost_per_unit }
-    : null;
-  const extraFeeds = assignedFeeds.filter((f) => f.feed_type_id !== originalFeed?.feed_type_id);
-  const feedOptions = originalFeed ? [originalFeed, ...extraFeeds] : extraFeeds;
-
-  const [newWeight, setNewWeight] = useState(String(event.total_weight || ""));
-  const [newFeedId, setNewFeedId] = useState(event.feed_types?.id ?? "");
-  const [newMethod, setNewMethod] = useState(event.input_method || "manual");
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const selectedFeedOption = feedOptions.find((f) => f.feed_type_id === Number(newFeedId));
-  const costPerUnit = selectedFeedOption?.cost_per_unit ?? selectedFeedOption?.cost_per_lb ?? 0;
-  const weight = Number(newWeight) || 0;
-  const newCostTotal = weight * costPerUnit;
-  const newCostPerBird = headcount > 0 ? newCostTotal / headcount : 0;
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSave({
-        total_weight: weight,
-        feed_type_id: Number(newFeedId),
-        weight_per_bird: headcount > 0 ? weight / headcount : 0,
-        cost_total: newCostTotal,
-        cost_per_bird: newCostPerBird,
-        input_method: newMethod,
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    try {
-      await onDelete();
-    } finally {
-      setDeleting(false);
-      setConfirmDelete(false);
-    }
-  }
-
-  return (
-    <div className="bg-[var(--bg-base)] rounded-lg border border-[var(--border)] p-4 grid gap-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">{event.flocks?.name}</h3>
-        <span className="font-mono text-[11px] text-[var(--text-muted)]">{formatTime(event.timestamp)}</span>
-      </div>
-
-      {feedOptions.length > 1 && (
-        <label className="field">
-          <span>Feed type</span>
-          <select value={newFeedId} onChange={(e) => setNewFeedId(e.target.value)}>
-            {feedOptions.map((f) => (
-              <option key={f.feed_type_id} value={f.feed_type_id}>{f.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <label className="flex items-baseline gap-3">
-        <input
-          className="bg-transparent border-0 border-b border-[var(--border)] text-[var(--text-primary)] font-[JetBrains_Mono,monospace] text-[28px] max-w-[150px] outline-none py-1 px-0"
-          type="number"
-          min="0"
-          step="0.01"
-          value={newWeight}
-          onChange={(e) => setNewWeight(e.target.value)}
-        />
-        <span className="text-[var(--text-muted)]">lbs</span>
-      </label>
-
-      <div className="flex gap-2">
-        {["manual", "scale"].map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={[
-              "bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] min-h-[30px] px-3 py-1 text-xs font-mono",
-              newMethod === m ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[#071107] font-bold" : "",
-            ].join(" ")}
-            onClick={() => setNewMethod(m)}
-          >
-            {m.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        <span className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] text-xs px-3 py-1">
-          {formatMoney(newCostTotal)} total
-        </span>
-        <span className="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-[var(--text-secondary)] text-xs px-3 py-1">
-          {formatMoney(newCostPerBird)}/bird
-        </span>
-      </div>
-
-      <div className="flex gap-2 items-center">
-        <button
-          className="primary-button flex-1"
-          type="button"
-          disabled={saving || weight <= 0}
-          onClick={handleSave}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-        {confirmDelete ? (
-          <>
-            <button
-              className="bg-[rgba(198,40,40,0.2)] border border-[rgba(198,40,40,0.5)] rounded-lg text-[#ef9a9a] font-mono text-xs py-2 px-3 cursor-pointer hover:bg-[rgba(198,40,40,0.3)]"
-              type="button"
-              disabled={deleting}
-              onClick={handleDelete}
-            >
-              {deleting ? "..." : "Confirm Delete"}
-            </button>
-            <button className="secondary-button" type="button" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <button
-            className="inline-flex items-center justify-center bg-transparent border border-[rgba(198,40,40,0.4)] rounded-md text-[#ef9a9a] h-9 w-9 p-0 cursor-pointer hover:bg-[rgba(198,40,40,0.1)]"
-            type="button"
-            aria-label="Delete feeding event"
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 size={15} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ProductionEditForm({ log, classType, onSave }) {
-  const [eggCount, setEggCount] = useState(String(log.egg_count ?? ""));
-  const [water, setWater] = useState(String(log.water_consumed ?? ""));
-  const [litterCount, setLitterCount] = useState(String(log.litter_count ?? ""));
-  const [litterSize, setLitterSize] = useState(String(log.litter_size ?? ""));
-  const [litterNotes, setLitterNotes] = useState(log.litter_notes || "");
-  const [notes, setNotes] = useState(log.notes || "");
-  const [saving, setSaving] = useState(false);
-
-  const classConfig = getClassConfig(classType || 'other');
-  const showLitter = classConfig.litterTracking;
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSave({
-        egg_count:     eggCount === "" ? null : Number(eggCount),
-        water_consumed: water === "" ? null : Number(water),
-        litter_count:  showLitter && litterCount !== "" ? Number(litterCount) : null,
-        litter_size:   showLitter && litterSize !== "" ? Number(litterSize) : null,
-        litter_notes:  showLitter ? litterNotes || null : null,
-        notes:         notes || null,
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="bg-[var(--bg-base)] rounded-lg border border-[var(--border)] p-4 grid gap-3">
-      <h3 className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">
-        {log.flocks?.name} — Production
-      </h3>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="field">
-          <span>Eggs</span>
-          <input type="number" min="0" value={eggCount} onChange={(e) => setEggCount(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Water (gal)</span>
-          <input type="number" min="0" step="0.1" value={water} onChange={(e) => setWater(e.target.value)} />
-        </label>
-      </div>
-      {showLitter && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="field">
-              <span>Litters</span>
-              <input type="number" min="0" value={litterCount} onChange={(e) => setLitterCount(e.target.value)} />
-            </label>
-            <label className="field">
-              <span>{classConfig.youngTerm} Born</span>
-              <input type="number" min="0" value={litterSize} onChange={(e) => setLitterSize(e.target.value)} />
-            </label>
-          </div>
-          <label className="field">
-            <span>Birth Notes</span>
-            <input type="text" value={litterNotes} maxLength={500} onChange={(e) => setLitterNotes(e.target.value)} />
-          </label>
-        </>
-      )}
-      <label className="field">
-        <span>Notes</span>
-        <input type="text" value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} />
-      </label>
-      <button className="secondary-button" type="button" disabled={saving} onClick={handleSave}>
-        {saving ? "Saving..." : "Save Production"}
-      </button>
-    </div>
   );
 }
 
