@@ -36,13 +36,14 @@ import {
 } from "../../services/scaleHouseApi";
 import { supabase } from "../../services/supabaseClient";
 
-function todayString() {
-  const now = new Date();
-  const year  = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day   = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function getLocalDateString(d = new Date()) {
+  return `${d.getFullYear()}-${
+    String(d.getMonth() + 1).padStart(2, '0')}-${
+    String(d.getDate()).padStart(2, '0')}`;
 }
+
+console.log('Local date:', getLocalDateString());
+console.log('UTC date:',   new Date().toISOString().split('T')[0]);
 
 const moneyFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",
@@ -119,7 +120,7 @@ function ScaleHouse() {
   const [litterNotes, setLitterNotes] = useState("");
   const [birthsToday, setBirthsToday] = useState(false);
   const [productionSkipped, setProductionSkipped] = useState(false);
-  const [sessionDate, setSessionDate] = useState(todayString());
+  const [sessionDate, setSessionDate] = useState(getLocalDateString());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCostDetails, setShowCostDetails] = useState(false);
 
@@ -148,7 +149,7 @@ function ScaleHouse() {
   const [editingObs,     setEditingObs]     = useState(null);
   const [sessionData, setSessionData] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(false);
-  const [panelDate, setPanelDate] = useState(todayString());
+  const [panelDate, setPanelDate] = useState(getLocalDateString());
 
   // ── Derived entry values ───────────────────────────────────────────────────
   const currentFlock = isDailyMode
@@ -183,7 +184,7 @@ function ScaleHouse() {
   const showMilk = currentFlock && currentAnimalClass.producesMilk;
   const showWorking = currentFlock && currentAnimalClass.workingAnimal;
   const showProduction = showEggs || showLitter || showMilk || showWorking;
-  const isBackdated = sessionDate !== todayString();
+  const isBackdated = sessionDate !== getLocalDateString();
   const completedPercent = queue.length ? Math.round((completed.length / queue.length) * 100) : 0;
   const currentFlockLog = currentFlock ? sessionLog[currentFlock.flock_id] ?? null : null;
   const alreadyLogged = !!currentFlockLog;
@@ -440,7 +441,7 @@ function ScaleHouse() {
 
   async function handleStartOver() {
     try {
-      await deleteAllTodayFeedings(todayString());
+      await deleteAllTodayFeedings(getLocalDateString());
       const nextQueue = await getQueue(userId);
       setQueue(nextQueue);
       if (nextQueue[0]) setQuickFlockId(String(nextQueue[0].flock_id));
@@ -468,8 +469,8 @@ function ScaleHouse() {
     setShowRestartMenu(false);
   }
 
-  function openReviewPanel() { setPanelDate(todayString()); setShowReviewPanel(true); }
-  function openEditPanel()   { setPanelDate(todayString()); setShowEditPanel(true); }
+  function openReviewPanel() { setPanelDate(getLocalDateString()); setShowReviewPanel(true); }
+  function openEditPanel()   { setPanelDate(getLocalDateString()); setShowEditPanel(true); }
 
   // ── Shared panel renders ───────────────────────────────────────────────────
   const panelProps = {
@@ -853,7 +854,7 @@ function QuickModeBanner({ navigate }) {
 
 function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyMode, setCurrentIndex, setDone, onClose, navigate }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const isToday = date === todayString();
+  const isToday = date === getLocalDateString();
 
   const flockMap = useMemo(() => {
     if (!sessionData) return {};
@@ -930,7 +931,7 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
               className="mt-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[36px] py-[7px] px-[10px]"
               type="date"
               value={date}
-              max={todayString()}
+              max={getLocalDateString()}
               onChange={(e) => { setDate(e.target.value); setShowDatePicker(false); }}
             />
           )}
@@ -1040,7 +1041,7 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
 
 function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyMode, setCurrentIndex, setDone, loadSessionData, userId, onClose, navigate }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const isToday = date === todayString();
+  const isToday = date === getLocalDateString();
   const [editingFlock, setEditingFlock] = useState(null);
   const [editForm, setEditForm] = useState({
     feedTypeId: null, feedWeight: '', inputMethod: 'manual', water: '',
@@ -1247,7 +1248,7 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
           {showDatePicker && (
             <input
               className="mt-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-md text-[var(--text-primary)] min-h-[36px] py-[7px] px-[10px]"
-              type="date" value={date} max={todayString()}
+              type="date" value={date} max={getLocalDateString()}
               onChange={e => { setDate(e.target.value); setShowDatePicker(false); }}
             />
           )}
