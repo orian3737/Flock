@@ -163,14 +163,14 @@ function FlockDetail() {
 
   return (
     <section className="grid gap-[18px]">
-      <header className="grid gap-4 items-start grid-cols-[40px_1fr] lg:grid-cols-[40px_minmax(0,1fr)_auto]">
+      <header className="grid gap-4 items-start grid-cols-[40px_minmax(0,1fr)]">
         <button className="icon-button" type="button" onClick={() => navigate("/flocks")} aria-label="Back to flocks">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 min-w-0">
           <span className="text-[30px]" aria-hidden="true">{animalClass.emoji}</span>
-          <div>
-            <h1 className="display-font text-3xl lg:text-4xl text-[var(--text-primary)] leading-tight">{flock.name}</h1>
+          <div className="min-w-0">
+            <h1 className="display-font text-3xl lg:text-4xl text-[var(--text-primary)] leading-tight break-words">{flock.name}</h1>
             <p className="text-[var(--text-secondary)] text-xs m-0 mt-1">
               {[flock.breed_name, flock.animal_type_name, flock.animal_class_name].filter(Boolean).join(" · ")}
             </p>
@@ -180,9 +180,9 @@ function FlockDetail() {
             </div>
           </div>
         </div>
-        <div className="col-span-2 lg:col-span-1 grid grid-cols-2 gap-2 mt-4 lg:grid-cols-4 lg:gap-3">
+        <div className="col-span-2 grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-3">
           <button
-            className="col-span-2 lg:col-span-1 primary-button"
+            className="col-span-2 xl:col-span-1 primary-button"
             type="button"
             onClick={() => navigate(`/scale-house?mode=quick&flock=${flock.id}`)}
           >
