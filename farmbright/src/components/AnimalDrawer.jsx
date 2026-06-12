@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { getAnimalDetail, logWeight, updateAnimal } from '../services/observationsApi'
+import { getAnimalDetail, getFlockAnimals, logWeight, updateAnimal } from '../services/observationsApi'
 import { OBSERVATION_CATEGORIES } from '../utils/animalClass'
 import { getLocalDateString } from '../utils/date'
 
@@ -14,6 +14,37 @@ const LOG_TYPE_LABELS = {
   injury: 'Injury', illness: 'Illness', recovery: 'Recovery', other: 'Other',
 }
 
+// Age display helper
+function getAgeDisplay(dateOfBirth) {
+  if (!dateOfBirth) return '—'
+  const dob  = new Date(dateOfBirth)
+  const now  = new Date()
+  const months = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth())
+  if (months < 1)  return '< 1 mo'
+  if (months < 12) return `${months} mo`
+  const years = Math.floor(months / 12)
+  const rem   = months % 12
+  return rem > 0 ? `${years}y ${rem}mo` : `${years}y`
+}
+
+const STATUS_OPTIONS = [
+  {
+    status: 'sold',
+    label: 'Sold',
+    className: 'btn flex-1 font-mono font-bold bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]',
+  },
+  {
+    status: 'deceased',
+    label: 'Deceased',
+    className: 'btn flex-1 font-mono btn-ghost border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-warn)] hover:text-[var(--accent-warn)]',
+  },
+  {
+    status: 'culled',
+    label: 'Culled',
+    className: 'btn flex-1 font-mono btn-ghost border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-danger)] hover:text-[var(--accent-danger)]',
+  },
+]
+
 export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
   const [animal,     setAnimal]     = useState(null)
   const [loading,    setLoading]    = useState(true)
@@ -22,11 +53,22 @@ export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
   const [weightForm, setWeightForm] = useState({ date: todayStr(), weight_lbs: '', input_method: 'manual', notes: '' })
   const [savingWt,   setSavingWt]   = useState(false)
   const [statusChanging, setStatusChanging] = useState(false)
-  const [confirmStatus, setConfirmStatus] = useState('')
+  const [editingLineage, setEditingLineage] = useState(false)
+  const [editSireId, setEditSireId] = useState(null)
+  const [editDamId,  setEditDamId]  = useState(null)
+  const [flockAnimals, setFlockAnimals] = useState([])
 
   useEffect(() => {
     load()
   }, [animalId])
+
+  useEffect(() => {
+    if (animal?.flock_id) {
+      getFlockAnimals(animal.flock_id, 'active')
+        .then(setFlockAnimals)
+        .catch(console.error)
+    }
+  }, [animal?.flock_id])
 
   async function load() {
     setLoading(true)
@@ -62,10 +104,10 @@ export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
   }
 
   async function handleStatusChange(status) {
+    if (!window.confirm(`Mark ${animal?.identifier || 'this animal'} as ${status}?`)) return
     setStatusChanging(true)
     try {
       await updateAnimal(animalId, { status })
-      setConfirmStatus('')
       await load()
       onUpdate?.()
     } catch {
@@ -75,13 +117,24 @@ export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
     }
   }
 
-  function calcAge(dob) {
-    if (!dob) return null
-    const d = new Date(dob)
-    const now = new Date()
-    const months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth())
-    if (months < 24) return `${months} mo`
-    return `${Math.floor(months / 12)} yr`
+  function openLineageEditor() {
+    setEditSireId(animal?.sire_id ?? null)
+    setEditDamId(animal?.dam_id ?? null)
+    setEditingLineage(true)
+  }
+
+  async function handleSaveLineage() {
+    try {
+      await updateAnimal(animalId, {
+        sire_id: editSireId ? Number(editSireId) : null,
+        dam_id:  editDamId  ? Number(editDamId)  : null,
+      })
+      setEditingLineage(false)
+      await load()
+      onUpdate?.()
+    } catch (err) {
+      console.error('Save lineage error:', err)
+    }
   }
 
   const weights = animal?.animal_weight_logs
@@ -118,9 +171,9 @@ export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
                 <div className="flex gap-2 mt-1">
                   <span className="badge badge-sm font-mono bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)] capitalize">{animal?.sex}</span>
                   <span className={`badge badge-sm font-mono border-none capitalize ${animal?.status === 'active' ? 'bg-[var(--accent-primary)] text-[var(--bg-base)]' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'}`}>{animal?.status}</span>
-                  {animal?.date_of_birth && (
-                    <span className="badge badge-sm font-mono bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border)]">{calcAge(animal.date_of_birth)}</span>
-                  )}
+                  <span className="badge badge-sm font-mono bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border)]">
+                    {getAgeDisplay(animal?.date_of_birth)}
+                  </span>
                 </div>
               </>
             )}
@@ -283,6 +336,75 @@ export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
                         </div>
                       ))}
                     </div>
+
+                    {!editingLineage ? (
+                      <button
+                        type="button"
+                        onClick={openLineageEditor}
+                        className="btn btn-sm btn-ghost font-mono border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] mt-3"
+                      >
+                        ✎ Edit lineage
+                      </button>
+                    ) : (
+                      <div className="mt-3 flex flex-col gap-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] p-4">
+                        <p className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider m-0">
+                          Set Parents
+                        </p>
+
+                        <div className="form-control">
+                          <label className="label">
+                            <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Sire (father)</span>
+                          </label>
+                          <select
+                            value={editSireId || ''}
+                            onChange={e => setEditSireId(e.target.value || null)}
+                            className="select select-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)]"
+                          >
+                            <option value="">Unknown</option>
+                            {flockAnimals
+                              .filter(a => a.sex === 'male' && a.id !== animal?.id)
+                              .map(a => (
+                                <option key={a.id} value={a.id}>{a.identifier}</option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="form-control">
+                          <label className="label">
+                            <span className="label-text font-mono text-xs font-semibold text-[#e8f5e9]">Dam (mother)</span>
+                          </label>
+                          <select
+                            value={editDamId || ''}
+                            onChange={e => setEditDamId(e.target.value || null)}
+                            className="select select-bordered font-mono bg-[var(--bg-base)] border-[var(--border)] text-[var(--text-primary)]"
+                          >
+                            <option value="">Unknown</option>
+                            {flockAnimals
+                              .filter(a => a.sex === 'female' && a.id !== animal?.id)
+                              .map(a => (
+                                <option key={a.id} value={a.id}>{a.identifier}</option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingLineage(false)}
+                            className="btn btn-sm btn-ghost font-mono border-[var(--border)] flex-1"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveLineage}
+                            className="btn btn-sm font-mono flex-1 bg-[var(--accent-primary)] text-[var(--bg-base)] border-none"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <p className="font-mono text-xs text-[var(--text-muted)] text-center m-0">Offspring tracking coming soon</p>
                 </div>
@@ -294,28 +416,22 @@ export default function AnimalDrawer({ animalId, onClose, onUpdate }) {
         {/* Status change footer */}
         {animal?.status === 'active' && (
           <div className="p-4 border-t border-[var(--border)]">
-            {confirmStatus ? (
-              <div className="flex gap-2 items-center">
-                <span className="font-mono text-xs text-[var(--text-muted)] flex-1">Mark as {confirmStatus}?</span>
-                <button type="button" onClick={() => handleStatusChange(confirmStatus)} disabled={statusChanging}
-                  className="btn btn-xs font-mono bg-[var(--accent-danger)] text-white border-none disabled:opacity-50">
-                  Confirm
+            <p className="font-mono text-[10px] text-[var(--text-muted)] text-center mb-2">
+              Change status — irreversible for deceased/culled
+            </p>
+            <div className="flex gap-2">
+              {STATUS_OPTIONS.map(({ status, label, className }) => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={statusChanging}
+                  onClick={() => handleStatusChange(status)}
+                  className={`${className} disabled:opacity-50`}
+                >
+                  {label}
                 </button>
-                <button type="button" onClick={() => setConfirmStatus('')}
-                  className="btn btn-xs btn-ghost font-mono border border-[var(--border)]">
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                {['sold', 'deceased', 'culled'].map(s => (
-                  <button key={s} type="button" onClick={() => setConfirmStatus(s)}
-                    className="btn btn-xs btn-ghost font-mono border border-[var(--border)] text-[var(--text-muted)] capitalize flex-1">
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
       </aside>
