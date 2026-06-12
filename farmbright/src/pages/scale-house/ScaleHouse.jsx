@@ -505,7 +505,7 @@ function ScaleHouse() {
         <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg p-[18px] grid gap-[18px]">
           <h1 className="display-font text-[var(--accent-primary)] text-[40px] leading-none m-0">All done for today {"✓"}</h1>
           <p className="text-[var(--text-muted)] m-0">Completed at {formatTime(new Date().toISOString())}</p>
-          <div className="grid gap-3 grid-cols-6 max-[980px]:grid-cols-1">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
             <SummaryTile label="Flocks Logged" value={summary?.flocks_fed || completed.length} />
             <SummaryTile label="Feed Used" value={`${formatNumber(summary?.total_feed_used_lbs)} lbs`} />
             <SummaryTile label="Total Cost" value={formatMoney(summary?.total_feed_cost)} />
@@ -514,7 +514,7 @@ function ScaleHouse() {
             <SummaryTile label="Casualties" value={summary?.casualties || 0} />
           </div>
           <div className="overflow-x-auto">
-            <table className="border-collapse w-full min-w-[760px]">
+            <table className="border-collapse w-full min-w-[420px] lg:min-w-[760px]">
               <thead>
                 <tr>
                   {["Flock", "Feed Used", "Cost", "Eggs", "Final Count"].map((h) => (
