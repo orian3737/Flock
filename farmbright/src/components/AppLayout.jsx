@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import MobileBottomNav from "./MobileBottomNav";
 import { useAuth } from "../context/AuthContext";
 import { useFarm } from "../context/FarmContext";
 import { getQueue } from "../services/scaleHouseApi";
@@ -181,11 +182,14 @@ function AppLayout() {
 
       {/* ── Main content ── */}
       {/* pt-20 reserves space below the fixed mobile top bar (h-14=56px + p-6=24px) */}
-      <main className="bg-base-100 lg:col-start-2 min-h-screen p-6 pt-20 lg:pt-6">
+      {/* pb-20 clears the fixed mobile bottom nav (56px + breathing room) */}
+      <main className="bg-base-100 lg:col-start-2 min-h-screen p-6 pt-20 pb-20 lg:pt-6 lg:pb-6">
         <div className="max-w-[1400px] mx-auto">
           <Outlet />
         </div>
       </main>
+
+      <MobileBottomNav onMore={() => setNavOpen(true)} />
     </div>
   );
 }

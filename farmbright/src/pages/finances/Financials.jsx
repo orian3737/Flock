@@ -254,7 +254,7 @@ function Financials() {
       </section>
 
       <button
-        className="fixed bottom-6 right-6 inline-flex items-center justify-center bg-[var(--accent-primary)] border-0 rounded-full text-[#071107] h-14 w-14 z-[8]"
+        className="fixed bottom-[calc(80px+env(safe-area-inset-bottom))] lg:bottom-6 right-6 inline-flex items-center justify-center bg-[var(--accent-primary)] border-0 rounded-full text-[#071107] h-14 w-14 z-[8]"
         type="button"
         onClick={() => setModalOpen(true)}
         aria-label="Log revenue"

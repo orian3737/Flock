@@ -696,7 +696,7 @@ function ScaleHouse() {
       </div>
 
       {isDailyMode ? (
-        <div className="fixed bottom-0 left-0 lg:left-[240px] right-0 z-[5] flex items-center justify-between gap-3 bg-[rgba(15,26,15,0.95)] border-t border-[var(--border)] py-[14px] px-6">
+        <div className="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] lg:bottom-0 left-0 lg:left-[240px] right-0 z-[5] flex items-center justify-between gap-3 bg-[rgba(15,26,15,0.95)] border-t border-[var(--border)] py-[14px] px-6">
           <div className="flex items-center gap-2">
             <button
               className={`btn btn-sm btn-ghost font-mono border border-[var(--border)] text-[var(--text-muted)] gap-1${history.length === 0 ? ' opacity-30 cursor-not-allowed' : ''}`}
@@ -891,8 +891,8 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-[rgba(3,8,3,0.72)]" onClick={onClose} />
-      <aside className="fixed inset-y-0 right-0 z-50 w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
+      <div className="fixed inset-0 z-[65] bg-[rgba(3,8,3,0.72)]" onClick={onClose} />
+      <aside className="fixed inset-y-0 right-0 z-[70] w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between px-4 py-3">
           <h2 className="display-font text-xl leading-none m-0">Day Review</h2>
@@ -1203,8 +1203,8 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-[rgba(3,8,3,0.72)]" onClick={onClose} />
-      <aside className="fixed inset-y-0 right-0 z-50 w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
+      <div className="fixed inset-0 z-[65] bg-[rgba(3,8,3,0.72)]" onClick={onClose} />
+      <aside className="fixed inset-y-0 right-0 z-[70] w-[520px] max-[640px]:inset-x-0 max-[640px]:w-auto bg-[var(--bg-surface)] border-l border-[var(--border)] flex flex-col">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
@@ -2439,7 +2439,7 @@ function TodayLogPanel({ eventsData, onDelete }) {
                   </td>
                   <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[IBM_Plex_Mono,monospace] text-xs p-[10px] text-left">
                     <button
-                      className="inline-flex items-center justify-center bg-transparent border border-transparent rounded-md text-[var(--text-muted)] h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-hover:border-[rgba(198,40,40,0.6)] group-hover:text-[#ef9a9a]"
+                      className="inline-flex items-center justify-center bg-transparent border border-transparent rounded-md text-[var(--text-muted)] min-w-[40px] min-h-[40px] p-0 opacity-50 lg:opacity-0 lg:group-hover:opacity-100 group-hover:border-[rgba(198,40,40,0.6)] group-hover:text-[#ef9a9a]"
                       type="button"
                       onClick={() => onDelete(event.id)}
                     >

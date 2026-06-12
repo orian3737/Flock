@@ -60,10 +60,14 @@ function Inventory() {
 
   useEffect(() => { refreshInventory(); }, [userId]);
 
-  async function loadTransactions(feedId) {
-    if (expandedFeedId === feedId) { setExpandedFeedId(null); return; }
+  async function fetchTransactions(feedId) {
     const rows = await getFeedTransactions(feedId);
     setTransactions((p) => ({ ...p, [feedId]: rows }));
+  }
+
+  async function loadTransactions(feedId) {
+    if (expandedFeedId === feedId) { setExpandedFeedId(null); return; }
+    await fetchTransactions(feedId);
     setExpandedFeedId(feedId);
   }
 
@@ -92,22 +96,22 @@ function Inventory() {
 
   async function submitPurchase(payload) {
     await purchaseFeed(payload);
-    setModal(null);
     await refreshInventory();
     if (expandedFeedId === payload.feed_type_id) {
-      await loadTransactions(payload.feed_type_id);
+      await fetchTransactions(payload.feed_type_id);
       setExpandedFeedId(payload.feed_type_id);
     }
+    setModal(null);
   }
 
   async function submitAdjustment(payload) {
     await adjustFeed(payload);
-    setModal(null);
     await refreshInventory();
     if (expandedFeedId === payload.feed_type_id) {
-      await loadTransactions(payload.feed_type_id);
+      await fetchTransactions(payload.feed_type_id);
       setExpandedFeedId(payload.feed_type_id);
     }
+    setModal(null);
   }
 
   if (loading) return <section className="panel-card">Loading inventory...</section>;
