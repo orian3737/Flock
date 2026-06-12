@@ -5,13 +5,12 @@ function fmt(error, fallback) {
 }
 
 export async function logYoungSale(payload) {
-  // payload: { flock_id, date, young_term, quantity, price_per_head, notes }
+  // payload: { flock_id, date, quantity, price_per_head, notes }
   const { data, error } = await supabase
     .from('young_sales')
     .insert({
       flock_id:      payload.flock_id,
       date:          payload.date,
-      young_term:    payload.young_term || 'young',
       quantity:      Number(payload.quantity),
       price_per_head: Number(payload.price_per_head),
       notes:         payload.notes || null,
@@ -42,7 +41,7 @@ export async function getYoungSales(startDate, endDate) {
 export async function getFlockYoungSales(flockId) {
   const { data, error } = await supabase
     .from('young_sales')
-    .select('id, date, young_term, quantity, price_per_head, total_amount, notes')
+    .select('id, date, quantity, price_per_head, total_amount, notes')
     .eq('flock_id', flockId)
     .order('date', { ascending: false });
   if (error) throw fmt(error, 'Could not load young sales.');

@@ -115,7 +115,7 @@ function FlockDetail() {
   async function submitYoungSale(payload) {
     setFeedback(null);
     try {
-      await logYoungSale({ ...payload, flock_id: Number(id), young_term: animalClass.youngTerm.toLowerCase() });
+      await logYoungSale({ ...payload, flock_id: Number(id) });
       setModal(null);
       if (await refresh()) setFeedback({ type: "success", message: `${animalClass.youngTerm} sale recorded` });
     } catch (error) {
