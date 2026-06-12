@@ -35,12 +35,7 @@ import {
   openScaleStream,
 } from "../../services/scaleHouseApi";
 import { supabase } from "../../services/supabaseClient";
-
-function getLocalDateString(d = new Date()) {
-  return `${d.getFullYear()}-${
-    String(d.getMonth() + 1).padStart(2, '0')}-${
-    String(d.getDate()).padStart(2, '0')}`;
-}
+import { getLocalDateString } from "../../utils/date";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",

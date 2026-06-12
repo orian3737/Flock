@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { getLocalDateString } from "../utils/date";
 
 function fmt(error, fallback) {
   return new Error(error?.message || fallback);
@@ -9,8 +10,8 @@ function fmt(error, fallback) {
 
 export async function getExportPreview({ report_type, start_date, end_date }) {
   const section = report_type === "full" ? "feeding_log" : report_type;
-  const sd = start_date || new Date().toISOString().slice(0, 10);
-  const ed = end_date || new Date().toISOString().slice(0, 10);
+  const sd = start_date || getLocalDateString();
+  const ed = end_date || getLocalDateString();
 
   if (section === "feeding_log") return fetchFeedingRows(sd, ed, [], 10);
   if (section === "production_log") return fetchProductionRows(sd, ed, [], 10);
@@ -30,8 +31,8 @@ export async function generateExport({ format, report_type, flock_ids, start_dat
   }
 
   const section = report_type === "full" ? "feeding_log" : report_type;
-  const sd = start_date || new Date().toISOString().slice(0, 10);
-  const ed = end_date || new Date().toISOString().slice(0, 10);
+  const sd = start_date || getLocalDateString();
+  const ed = end_date || getLocalDateString();
   const ids = flock_ids || [];
 
   let result;

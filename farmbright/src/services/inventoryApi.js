@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { getLocalDateString } from "../utils/date";
 
 function fmt(error, fallback) {
   return new Error(error?.message || fallback);
@@ -134,7 +135,7 @@ export async function purchaseFeed({ feed_type_id, num_bags, bag_weight, bag_pri
     p_num_bags: Number(num_bags),
     p_bag_weight: Number(bag_weight),
     p_bag_price: Number(bag_price),
-    p_date: date || new Date().toISOString().slice(0, 10),
+    p_date: date || getLocalDateString(),
     p_supplier: supplier || null,
   });
   if (error) throw fmt(error, "Could not record purchase.");
@@ -148,7 +149,7 @@ export async function adjustFeed({ feed_type_id, quantity_change, reason, date }
     p_feed_type_id: feed_type_id,
     p_quantity_change: Number(quantity_change),
     p_reason: reason,
-    p_date: date || new Date().toISOString().slice(0, 10),
+    p_date: date || getLocalDateString(),
   });
   if (error) throw fmt(error, "Could not record adjustment.");
   return feedTypeJson(data);

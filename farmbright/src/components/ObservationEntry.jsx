@@ -4,6 +4,7 @@ import {
   OBSERVATION_OPTIONS,
 } from '../utils/animalClass'
 import { logObservation, updateObservation } from '../services/observationsApi'
+import { getLocalDateString } from '../utils/date'
 
 export default function ObservationEntry({
   flockId,
@@ -74,7 +75,7 @@ export default function ObservationEntry({
         result = await logObservation({
           flock_id:         flockId,
           animal_id:        selectedAnimal?.id || null,
-          date:             new Date().toISOString().split('T')[0],
+          date:             getLocalDateString(),
           category,
           selected_options: selectedOptions,
           detail:           detail.trim() || null,

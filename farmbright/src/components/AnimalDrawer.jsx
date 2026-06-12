@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { getAnimalDetail, logWeight, updateAnimal } from '../services/observationsApi'
 import { OBSERVATION_CATEGORIES } from '../utils/animalClass'
+import { getLocalDateString } from '../utils/date'
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
+const todayStr = () => getLocalDateString()
 
 function categoryEmoji(key) { return OBSERVATION_CATEGORIES.find(c => c.key === key)?.emoji || '📝' }
 function categoryLabel(key) { return OBSERVATION_CATEGORIES.find(c => c.key === key)?.label || key }

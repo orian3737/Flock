@@ -5,8 +5,7 @@ import { FarmContext } from "../../context/FarmContext";
 import { getExportPreview } from "../../services/exportApi";
 import { generateCSV, generatePDF, generateXLSX } from "../../services/exportService";
 import { getQueue } from "../../services/scaleHouseApi";
-
-const todayString = () => new Date().toISOString().slice(0, 10);
+import { getLocalDateString, getDaysAgoString, getMonthStartString } from "../../utils/date";
 
 const reportOptions = [
   { id: "feeding_log", label: "Feeding Log" },
@@ -430,18 +429,14 @@ function PreviewPanel({ dateRange, farmName, format, preview, reportType, sectio
 }
 
 function defaultRange(preset) {
-  const today = new Date();
-  const end = today.toISOString().slice(0, 10);
+  const end = getLocalDateString();
   if (preset === "today") {
     return { start_date: end, end_date: end };
   }
   if (preset === "week") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 6);
-    return { start_date: start.toISOString().slice(0, 10), end_date: end };
+    return { start_date: getDaysAgoString(6), end_date: end };
   }
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  return { start_date: start.toISOString().slice(0, 10), end_date: end };
+  return { start_date: getMonthStartString(), end_date: end };
 }
 
 export default Export;

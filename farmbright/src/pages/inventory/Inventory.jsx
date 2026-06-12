@@ -11,8 +11,9 @@ import {
   purchaseFeed,
   updateFeed,
 } from "../../services/inventoryApi";
+import { getLocalDateString } from "../../utils/date";
 
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = () => getLocalDateString();
 const moneyFormatter = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" });
 
 function formatMoney(value = 0) { return moneyFormatter.format(Number(value) || 0); }

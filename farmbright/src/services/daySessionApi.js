@@ -1,11 +1,5 @@
 import { supabase } from './supabaseClient';
-
-function getLocalDateString(date = new Date()) {
-  const year  = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day   = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+import { getLocalDateString } from '../utils/date';
 
 export async function getTodaySession(date = null) {
   const sessionDate = date || getLocalDateString();

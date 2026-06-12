@@ -1,15 +1,8 @@
 import { supabase } from "./supabaseClient";
+import { getLocalDateString } from "../utils/date";
 
 function fmt(error, fallback) {
   return new Error(error?.message || fallback);
-}
-
-function getLocalDateString() {
-  const now = new Date();
-  const year  = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day   = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function feedStatus(ft) {
@@ -28,7 +21,7 @@ export async function getQueue() {
     supabase
       .from("flocks")
       .select(
-        `id, name, designation, pen_name, current_headcount,
+        `id, name, designation, pen_name, current_headcount, individual_tracking_enabled,
          breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
            id, feed_type_id,
@@ -68,6 +61,7 @@ export async function getQueue() {
     designation: flock.designation,
     pen_name: flock.pen_name,
     current_headcount: flock.current_headcount,
+    individual_tracking_enabled: flock.individual_tracking_enabled ?? false,
     assigned_feeds: (flock.feed_assignments || [])
       .filter((a) => a.feed_types)
       .map((a) => ({

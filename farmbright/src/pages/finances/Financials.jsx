@@ -9,23 +9,20 @@ import {
 import { FarmContext } from "../../context/FarmContext";
 import { createRevenue, getFinancialSummary, getFlockFinancials } from "../../services/financialsApi";
 import { getQueue } from "../../services/scaleHouseApi";
+import { getLocalDateString, getDaysAgoString, getMonthStartString } from "../../utils/date";
 
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = () => getLocalDateString();
 const moneyFormatter = new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" });
 
 function formatMoney(value = 0) { return moneyFormatter.format(Number(value) || 0); }
 
 function rangeFor(period) {
-  const today = new Date();
-  const end = today.toISOString().slice(0, 10);
+  const end = getLocalDateString();
   if (period === "today") return { start_date: end, end_date: end };
   if (period === "week") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 6);
-    return { start_date: start.toISOString().slice(0, 10), end_date: end };
+    return { start_date: getDaysAgoString(6), end_date: end };
   }
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  return { start_date: start.toISOString().slice(0, 10), end_date: end };
+  return { start_date: getMonthStartString(), end_date: end };
 }
 
 function Financials() {

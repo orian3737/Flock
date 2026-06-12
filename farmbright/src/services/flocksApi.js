@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { getLocalDateString, getDaysAgoString } from "../utils/date";
 
 function fmt(error, fallback) {
   return new Error(error?.message || fallback);
@@ -10,13 +11,13 @@ function fmt(error, fallback) {
 // production_logs fetched in a second parallel query.
 
 export async function getFlocks() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   const [flocksResult, feedingResult] = await Promise.all([
     supabase
       .from("flocks")
       .select(
-        `id, name, designation, pen_name, current_headcount, created_at,
+        `id, name, designation, pen_name, current_headcount, individual_tracking_enabled, created_at,
          breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
            id, feed_type_id,
@@ -76,6 +77,7 @@ export async function getFlocks() {
       designation: flock.designation,
       pen_name: flock.pen_name,
       current_headcount: flock.current_headcount,
+      individual_tracking_enabled: flock.individual_tracking_enabled ?? false,
       created_at: flock.created_at,
       breed_name: flock.breeds?.name || "",
       animal_class_name: flock.breeds?.animal_types?.animal_classes?.name || "",
@@ -105,15 +107,15 @@ export async function getFlocks() {
 // ── Flock Detail ─────────────────────────────────────────────
 
 export async function getFlockDetail(flockId) {
-  const today = new Date().toISOString().slice(0, 10);
-  const start14 = offsetDate(-13);
-  const start30 = offsetDate(-29);
+  const today = getLocalDateString();
+  const start14 = getDaysAgoString(13);
+  const start30 = getDaysAgoString(29);
 
   const [flockResult, feedingResult, productionResult, casualtyResult] = await Promise.all([
     supabase
       .from("flocks")
       .select(
-        `id, name, designation, pen_name, current_headcount, created_at,
+        `id, name, designation, pen_name, current_headcount, individual_tracking_enabled, created_at,
          breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
            id, feed_type_id,
@@ -187,7 +189,9 @@ export async function getFlockDetail(flockId) {
       designation: flock.designation,
       pen_name: flock.pen_name,
       current_headcount: flock.current_headcount,
+      individual_tracking_enabled: flock.individual_tracking_enabled ?? false,
       breed_name: flock.breeds?.name || "",
+      animal_type_name: flock.breeds?.animal_types?.name || "",
       animal_class_name: flock.breeds?.animal_types?.animal_classes?.name || "",
       class_type: flock.breeds?.animal_types?.animal_classes?.class_type || 'other',
       emoji: flock.breeds?.animal_types?.emoji || '🐾',
@@ -287,7 +291,7 @@ export async function logProduction(flockId, payload) {
     .from("production_logs")
     .insert({
       flock_id:       flockId,
-      date:           payload.date || new Date().toISOString().slice(0, 10),
+      date:           payload.date || getLocalDateString(),
       egg_count:      payload.egg_count      ?? null,
       water_consumed: payload.water_consumed  ?? null,
       litter_count:   payload.litter_count   ?? null,
@@ -307,7 +311,7 @@ export async function logCasualty(flockId, payload) {
     .from("casualty_logs")
     .insert({
       flock_id: flockId,
-      date: payload.date || new Date().toISOString().slice(0, 10),
+      date: payload.date || getLocalDateString(),
       change_amount: Number(payload.change_amount),
       notes: payload.notes || null,
     })
@@ -361,12 +365,6 @@ function feedStatus(ft) {
   if (ft.current_on_hand <= ft.par_level) return "critical";
   if (ft.current_on_hand <= ft.par_level * 2) return "warning";
   return "ok";
-}
-
-function offsetDate(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 function round2(n) { return Math.round(n * 100) / 100; }

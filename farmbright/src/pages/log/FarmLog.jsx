@@ -5,9 +5,10 @@ import { OBSERVATION_CATEGORIES } from '../../utils/animalClass'
 import ObservationEntry from '../../components/ObservationEntry'
 import { getObservationHistory, resolveFollowUp, deleteObservation, updateObservation } from '../../services/observationsApi'
 import { getQueue } from '../../services/scaleHouseApi'
+import { getLocalDateString, getDaysAgoString } from '../../utils/date'
 
-const todayStr  = () => new Date().toISOString().slice(0, 10)
-const daysAgo   = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10) }
+const todayStr  = () => getLocalDateString()
+const daysAgo   = (n) => getDaysAgoString(n)
 
 function formatDate(date) {
   return new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })

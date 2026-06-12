@@ -13,8 +13,9 @@ import { getFlockAnimals, getObservationHistory, enableFlockTracking, createAnim
 import { supabase } from "../../services/supabaseClient";
 import { getClassConfig } from "../../utils/animalClass";
 import { useAnimalClass } from "../../hooks/useAnimalClass";
+import { getLocalDateString, getDaysAgoString } from "../../utils/date";
 
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = () => getLocalDateString();
 
 function FlockDetail() {
   const navigate = useNavigate();
@@ -79,9 +80,8 @@ function FlockDetail() {
 
   useEffect(() => {
     if (!id) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const d = new Date(); d.setDate(d.getDate() - 90);
-    const startDate = d.toISOString().slice(0, 10);
+    const today = getLocalDateString();
+    const startDate = getDaysAgoString(90);
     getObservationHistory(null, startDate, today, { flockId: Number(id) }).then(setFlockObs).catch(() => {});
   }, [id]);
 
@@ -152,9 +152,8 @@ function FlockDetail() {
   }
 
   async function reloadObs() {
-    const today = new Date().toISOString().slice(0, 10);
-    const d = new Date(); d.setDate(d.getDate() - 90);
-    const startDate = d.toISOString().slice(0, 10);
+    const today = getLocalDateString();
+    const startDate = getDaysAgoString(90);
     const updated = await getObservationHistory(null, startDate, today, { flockId: Number(id) }).catch(() => flockObs);
     setFlockObs(updated);
   }
@@ -173,7 +172,7 @@ function FlockDetail() {
           <div>
             <h1 className="display-font text-3xl lg:text-4xl text-[var(--text-primary)] leading-tight">{flock.name}</h1>
             <p className="text-[var(--text-secondary)] text-xs m-0 mt-1">
-              {flock.breeds?.name} · {flock.breeds?.animal_types?.name} · {flock.breeds?.animal_types?.animal_classes?.name}
+              {[flock.breed_name, flock.animal_type_name, flock.animal_class_name].filter(Boolean).join(" · ")}
             </p>
             <div className="flex items-center gap-2.5 mt-1">
               <span className={`designation-badge ${flock.designation}`}>{flock.designation}</span>
@@ -278,7 +277,7 @@ function FlockDetail() {
             <section className="settings-panel">
               <div className="section-title-row" style={{ padding: "14px 18px" }}>
                 <h2 className="display-font">Litter History</h2>
-                <button className="text-link-button" type="button" onClick={() => setModal("litter")}>
+                <button className="text-link-button" type="button" onClick={() => setShowLitterModal(true)}>
                   Log litter
                 </button>
               </div>

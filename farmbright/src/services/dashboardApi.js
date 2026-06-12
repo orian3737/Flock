@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { getLocalDateString, getDaysAgoString } from "../utils/date";
 
 function fmt(error, fallback) {
   return new Error(error?.message || fallback);
@@ -12,8 +13,8 @@ function feedStatus(ft) {
 }
 
 export async function getDashboardOverview() {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = offsetDate(-1);
+  const today = getLocalDateString();
+  const yesterday = getDaysAgoString(1);
 
   // Run all reads in parallel
   const [
@@ -178,10 +179,4 @@ export async function dismissInventoryAlert(alertId) {
   const { error } = await supabase.from("alerts").update({ is_read: true }).eq("id", alertId);
   if (error) throw fmt(error, "Could not dismiss alert.");
   return { success: true };
-}
-
-function offsetDate(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }

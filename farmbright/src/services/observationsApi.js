@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { getLocalDateString } from '../utils/date'
 
 // ── Observation CRUD ──────────────────────────
 
@@ -41,7 +42,7 @@ export async function logObservation(payload) {
 }
 
 export async function getTodayObservations(userId) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
   const { data, error } = await supabase
     .from('observation_logs')
     .select(`
@@ -184,12 +185,19 @@ export async function getFlockAnimals(flockId, status = 'active') {
   if (status !== 'all') query = query.eq('status', status)
   const { data, error } = await query
   if (error) throw error
-  return (data || []).map(a => ({
-    ...a,
-    latest_weight:      a.animal_weight_logs?.[0]?.weight_lbs ?? null,
-    latest_weight_date: a.animal_weight_logs?.[0]?.date ?? null,
-    open_health_issues: a.animal_health_logs?.filter(h => !h.resolved).length ?? 0,
-  }))
+  return (data || []).map(a => {
+    // PostgREST does not guarantee embedded array order — sort by date
+    // descending so [0] is genuinely the most recent weight.
+    const sortedWeights = (a.animal_weight_logs || [])
+      .slice()
+      .sort((x, y) => new Date(y.date) - new Date(x.date))
+    return {
+      ...a,
+      latest_weight:      sortedWeights[0]?.weight_lbs ?? null,
+      latest_weight_date: sortedWeights[0]?.date ?? null,
+      open_health_issues: a.animal_health_logs?.filter(h => !h.resolved).length ?? 0,
+    }
+  })
 }
 
 export async function createAnimal(payload) {

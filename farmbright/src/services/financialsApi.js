@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { getLocalDateString } from "../utils/date";
 
 function fmt(error, fallback) {
   return new Error(error?.message || fallback);
@@ -9,17 +10,18 @@ function currentMonthRange() {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   return {
-    start_date: start.toISOString().slice(0, 10),
-    end_date: end.toISOString().slice(0, 10),
+    start_date: getLocalDateString(start),
+    end_date: getLocalDateString(end),
   };
 }
 
 function dateRange(startDate, endDate) {
   const dates = [];
-  const cur = new Date(startDate);
-  const end = new Date(endDate);
+  // Parse as local midnight so iteration stays in the local calendar.
+  const cur = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
   while (cur <= end) {
-    dates.push(cur.toISOString().slice(0, 10));
+    dates.push(getLocalDateString(cur));
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
@@ -189,7 +191,7 @@ export async function createRevenue({ user_id, flock_id, date, amount, source, n
     .insert({
       user_id,
       flock_id: flock_id || null,
-      date: date || new Date().toISOString().slice(0, 10),
+      date: date || getLocalDateString(),
       amount: Number(amount),
       source,
       notes: notes || null,
