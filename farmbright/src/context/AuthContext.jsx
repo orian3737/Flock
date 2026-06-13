@@ -84,9 +84,15 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
       setLoading(true);
-      await loadProfile(session?.user || null);
-      setLoading(false);
+      try {
+        await loadProfile(session?.user || null);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     });
 
     return () => {

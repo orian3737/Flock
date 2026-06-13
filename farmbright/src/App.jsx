@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import AppLayout from "./components/AppLayout.jsx";
-import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import ProtectedRoute, { OnboardingRoute } from "./components/ProtectedRoute.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { FarmProvider } from "./context/FarmContext.jsx";
 import Login from "./pages/auth/Login.jsx";
@@ -30,7 +30,9 @@ export function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/onboarding" element={<OnboardingWizard />} />
+              <Route element={<OnboardingRoute />}>
+                <Route path="/onboarding" element={<OnboardingWizard />} />
+              </Route>
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
