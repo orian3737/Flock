@@ -372,11 +372,24 @@ export default function FarmLog() {
         </div>
       )}
 
-      {/* Edit modal */}
-      <dialog className={`modal ${editingObs ? 'modal-open' : ''}`}>
-        <div className="modal-box bg-[var(--bg-surface)] border border-[var(--border)]">
-          <h3 className="font-mono text-lg font-bold text-[var(--text-primary)] mb-4">Edit Observation</h3>
-          {editingObs && (
+      {editingObs && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setEditingObs(null)
+          }}
+        >
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-observation-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="edit-observation-title" className="font-mono text-lg font-bold text-[var(--text-primary)] m-0">
+              Edit Observation
+            </h3>
             <ObservationEntry
               flockId={editingObs.flock_id}
               animals={[]}
@@ -385,10 +398,9 @@ export default function FarmLog() {
               onSave={() => { setEditingObs(null); load() }}
               onCancel={() => setEditingObs(null)}
             />
-          )}
+          </section>
         </div>
-        <div className="modal-backdrop" onClick={() => setEditingObs(null)} />
-      </dialog>
+      )}
     </section>
   )
 }
