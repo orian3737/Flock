@@ -633,6 +633,7 @@ function ScaleHouse() {
           currentAnimalClass={currentAnimalClass}
           currentFeed={currentFeed}
           currentFlock={currentFlock}
+          currentHeadTerm={currentHeadTerm}
           effectiveWeight={effectiveWeight}
           eggCount={eggCount}
           feedWeight={feedWeight}
@@ -1699,6 +1700,7 @@ function ScaleEntryCard(props) {
     currentAnimalClass,
     currentFeed,
     currentFlock,
+    currentHeadTerm,
     effectiveWeight,
     eggCount,
     feedWeight,
