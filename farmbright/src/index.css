@@ -219,6 +219,38 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.18);
 }
 
+/* Daisy form controls */
+
+.checkbox {
+  background-color: var(--bg-base);
+  border-color: rgba(232, 245, 233, 0.72);
+  border-width: 2px;
+  box-shadow: inset 0 0 0 1px rgba(232, 245, 233, 0.08);
+}
+
+.checkbox:hover {
+  border-color: var(--accent-primary);
+}
+
+.checkbox:checked,
+.checkbox[aria-checked="true"] {
+  background-color: var(--chkbg, var(--accent-primary));
+  border-color: var(--chkbg, var(--accent-primary));
+  color: #071107;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.18);
+}
+
+.checkbox-warning:checked {
+  background-color: var(--accent-warn);
+  border-color: var(--accent-warn);
+  box-shadow: 0 0 0 3px rgba(255, 143, 0, 0.2);
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
 /* ─── Modal ───────────────────────────────────────── */
 
 .modal-backdrop {

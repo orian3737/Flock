@@ -179,7 +179,7 @@ function Export() {
                   <input
                     checked={selectedReportTypes.includes(option.id)}
                     type="checkbox"
-                    className="checkbox checkbox-sm [--chkbg:var(--accent-primary)]"
+                    className="checkbox checkbox-sm checkbox-primary"
                     onChange={() =>
                       setSelectedReportTypes((prev) =>
                         prev.includes(option.id)
@@ -204,7 +204,7 @@ function Export() {
               <input
                 checked={allFlocks}
                 type="checkbox"
-                className="toggle toggle-sm [--tglbg:var(--accent-primary)]"
+                className="toggle toggle-sm toggle-primary"
                 onChange={(e) => setAllFlocks(e.target.checked)}
               />
             </div>
@@ -215,7 +215,7 @@ function Export() {
                     <input
                       checked={flockIds.includes(flock.flock_id)}
                       type="checkbox"
-                      className="checkbox checkbox-sm [--chkbg:var(--accent-primary)]"
+                      className="checkbox checkbox-sm checkbox-primary"
                       onChange={() => toggleFlock(flock.flock_id)}
                     />
                     <span className="font-mono text-sm text-[var(--text-primary)]">{flock.name}</span>

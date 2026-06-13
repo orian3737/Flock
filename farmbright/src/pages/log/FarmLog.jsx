@@ -204,7 +204,7 @@ export default function FarmLog() {
               type="checkbox"
               checked={filterFollowUp}
               onChange={e => setFilterFollowUp(e.target.checked)}
-              className="checkbox checkbox-sm [--chkbg:var(--accent-warn)]"
+              className="checkbox checkbox-sm checkbox-warning"
             />
             <span className="font-mono text-xs text-[var(--text-secondary)]">Open follow-ups only</span>
           </label>

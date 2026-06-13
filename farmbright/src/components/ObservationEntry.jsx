@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Check } from 'lucide-react'
 import {
   OBSERVATION_CATEGORIES,
   OBSERVATION_OPTIONS,
@@ -286,29 +285,13 @@ export default function ObservationEntry({
           </div>
 
           {/* Follow-up toggle */}
-          <label
-            className={`flex items-center gap-3 mb-4 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-              followUp
-                ? 'bg-[rgba(76,175,80,0.16)] border-[var(--accent-primary)] shadow-[0_0_0_3px_rgba(76,175,80,0.16)]'
-                : 'bg-[rgba(232,245,233,0.04)] border-[rgba(232,245,233,0.38)] hover:border-[var(--accent-primary)] hover:bg-[rgba(76,175,80,0.08)]'
-            }`}
-          >
+          <label className="flex items-center gap-3 mb-4 p-3 rounded-xl border border-[var(--border)] bg-[rgba(232,245,233,0.04)] cursor-pointer hover:border-[var(--accent-primary)] transition-colors">
             <input
               type="checkbox"
               checked={followUp}
               onChange={e => setFollowUp(e.target.checked)}
-              className="sr-only"
+              className="checkbox checkbox-sm checkbox-primary"
             />
-            <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-                followUp
-                  ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--bg-base)]'
-                  : 'border-[rgba(232,245,233,0.7)] bg-[var(--bg-base)]'
-              }`}
-              aria-hidden="true"
-            >
-              {followUp ? <Check size={18} strokeWidth={3} /> : null}
-            </span>
             <span className="font-mono text-xs text-[var(--text-secondary)]">
               Needs follow-up — adds to action items on dashboard
             </span>

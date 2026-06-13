@@ -642,7 +642,12 @@ function FeedSetupStep({ feedTypes, flocks, assignments, onAdd, onRemove, onTogg
                   const key = `${feed.id || feed.tempId}:${flock.id}`;
                   return (
                     <td className="border-b border-[rgba(46,125,50,0.55)] text-[var(--text-secondary)] font-[JetBrains_Mono,monospace] p-3 text-left" key={flock.id}>
-                      <input type="checkbox" checked={assignments.has(key)} onChange={() => onToggleAssignment(feed, flock)} />
+                      <input
+                        type="checkbox"
+                        checked={assignments.has(key)}
+                        onChange={() => onToggleAssignment(feed, flock)}
+                        className="checkbox checkbox-sm checkbox-primary"
+                      />
                     </td>
                   );
                 })}

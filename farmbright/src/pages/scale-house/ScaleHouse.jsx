@@ -2104,6 +2104,7 @@ function ScaleEntryCard(props) {
                     checked={autoCapture}
                     type="checkbox"
                     onChange={(event) => setAutoCapture(event.target.checked)}
+                    className="checkbox checkbox-sm checkbox-primary"
                   />
                   Auto-capture first stable reading
                 </label>
@@ -2188,6 +2189,7 @@ function ScaleEntryCard(props) {
                 <input
                   checked={birthsToday}
                   type="checkbox"
+                  className="checkbox checkbox-sm checkbox-primary"
                   onChange={(event) => {
                     setBirthsToday(event.target.checked);
                     if (!event.target.checked) {

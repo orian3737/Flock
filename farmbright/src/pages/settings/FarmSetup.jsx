@@ -792,7 +792,7 @@ function FeedAssignModal({ flock, feedTypes, selectedFeedIds, setSelectedFeedIds
                     setSelectedFeedIds(prev => prev.filter(id => id !== feed.id));
                   }
                 }}
-                className="checkbox checkbox-sm [--chkbg:var(--accent-primary)]"
+                className="checkbox checkbox-sm checkbox-primary"
               />
               <div className="flex-1">
                 <p className="font-mono text-sm text-[var(--text-primary)] m-0">{feed.name}</p>

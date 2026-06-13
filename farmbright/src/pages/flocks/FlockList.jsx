@@ -273,6 +273,7 @@ function AddFlockModal({ feedTypes, userId, onClose, onSubmit }) {
                 type="checkbox"
                 checked={feedIds.includes(feed.id)}
                 onChange={() => toggleFeed(feed.id)}
+                className="checkbox checkbox-sm checkbox-primary"
               />
               {feed.name}
             </label>

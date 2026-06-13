@@ -512,7 +512,12 @@ function ToggleRow({ checked, description, label, onChange }) {
         <strong>{label}</strong>
         <small>{description}</small>
       </span>
-      <input type="checkbox" checked={Boolean(checked)} onChange={(e) => onChange(e.target.checked)} />
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        onChange={(e) => onChange(e.target.checked)}
+        className="toggle toggle-sm toggle-primary"
+      />
     </label>
   );
 }
