@@ -1,21 +1,53 @@
-import React, { useContext, useEffect, useState } from "react";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle, Pencil, Trash2, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import InlineFeedback from "../../components/InlineFeedback";
 import ObservationEntry from "../../components/ObservationEntry";
-import ObservationCard from "../../components/ObservationCard";
 import AnimalDrawer from "../../components/AnimalDrawer";
 import { FarmContext } from "../../context/FarmContext";
 import { getFlockDetail, logCasualty, logProduction } from "../../services/flocksApi";
 import { getFlockYoungSales, logYoungSale } from "../../services/revenueApi";
 import { getFlockAnimals, getObservationHistory, enableFlockTracking, createAnimal, deleteObservation, resolveFollowUp } from "../../services/observationsApi";
 import { supabase } from "../../services/supabaseClient";
-import { getClassConfig } from "../../utils/animalClass";
+import { getClassConfig, OBSERVATION_CATEGORIES } from "../../utils/animalClass";
 import { useAnimalClass } from "../../hooks/useAnimalClass";
 import { getLocalDateString, getDaysAgoString } from "../../utils/date";
 
 const todayString = () => getLocalDateString();
+
+function formatObservationDate(date) {
+  if (!date) return "Unknown date";
+  return new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function groupFlockObservations(observations) {
+  const grouped = observations.reduce((acc, obs) => {
+    const date = obs.date || "unknown";
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(obs);
+    return acc;
+  }, {});
+
+  return Object.keys(grouped)
+    .sort((a, b) => {
+      if (a === "unknown") return 1;
+      if (b === "unknown") return -1;
+      return new Date(b) - new Date(a);
+    })
+    .map((date) => ({
+      date,
+      observations: grouped[date].slice().sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bTime - aTime;
+      }),
+    }));
+}
 
 function FlockDetail() {
   const navigate = useNavigate();
@@ -45,6 +77,8 @@ function FlockDetail() {
   const animalClass = useAnimalClass(flock);
   const showProduction = Boolean(flock && animalClass.producesEggs && !animalClass.workingAnimal);
   const showWorking = Boolean(flock && animalClass.workingAnimal);
+  const today = todayString();
+  const groupedFlockObs = useMemo(() => groupFlockObservations(flockObs), [flockObs]);
 
   async function refresh() {
     setLoading(true);
@@ -460,12 +494,13 @@ function FlockDetail() {
               {flockObs.length === 0 && !showObsEntry && !editingObs ? (
                 <p className="font-mono text-xs text-[var(--text-muted)] text-center py-4 m-0">No observations in the last 90 days</p>
               ) : (
-                <div className="grid gap-1">
-                  {flockObs.map((obs) => (
-                    <ObservationCard
-                      key={obs.id}
-                      obs={obs}
-                      showFlock={false}
+                <div className="grid gap-4">
+                  {groupedFlockObs.map(({ date, observations }) => (
+                    <FlockObservationDateGroup
+                      key={date}
+                      date={date}
+                      observations={observations}
+                      today={today}
                       onEdit={(o) => { setShowObsEntry(false); setEditingObs(o); }}
                       onDelete={async (obsId) => { await deleteObservation(obsId); await reloadObs(); }}
                       onResolve={async (obsId) => { await resolveFollowUp(obsId); await reloadObs(); }}
@@ -648,6 +683,170 @@ function StatCard({ label, value }) {
       <strong className="text-[var(--text-primary)] text-[32px] leading-none">{value}</strong>
       <span className="text-[var(--text-muted)] text-[11px]">{label}</span>
     </div>
+  );
+}
+
+function FlockObservationDateGroup({ date, observations, today, onEdit, onDelete, onResolve }) {
+  const hasUrgent = observations.some((obs) => obs.severity === "urgent");
+  const hasConcern = observations.some((obs) => obs.severity === "concern");
+
+  return (
+    <section className="rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--bg-surface)]">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 bg-[var(--bg-elevated)] border-b border-[var(--border)]">
+        <div className="min-w-0">
+          <h3 className="display-font text-lg text-[var(--text-primary)] m-0 truncate">
+            {formatObservationDate(date === "unknown" ? null : date)}
+            {date === today && (
+              <span className="font-mono text-xs text-[var(--accent-primary)] ml-2">Today</span>
+            )}
+          </h3>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {hasUrgent && (
+            <span className="badge badge-xs font-mono bg-[var(--accent-danger)] text-white border-none">Urgent</span>
+          )}
+          {!hasUrgent && hasConcern && (
+            <span className="badge badge-xs font-mono bg-[var(--accent-warn)] text-[var(--bg-base)] border-none">Concern</span>
+          )}
+          <span className="font-mono text-[10px] text-[var(--text-muted)] whitespace-nowrap">
+            {observations.length} obs
+          </span>
+        </div>
+      </header>
+
+      <div className="divide-y divide-[var(--border)]">
+        {observations.map((obs) => (
+          <FlockObservationRow
+            key={obs.id}
+            obs={obs}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onResolve={onResolve}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FlockObservationRow({ obs, onEdit, onDelete, onResolve }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const category = OBSERVATION_CATEGORIES.find((c) => c.key === obs.category);
+  const time = obs.created_at
+    ? new Date(obs.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  const borderColor =
+    obs.severity === "urgent" ? "border-l-[var(--accent-danger)]" :
+    obs.severity === "concern" ? "border-l-[var(--accent-warn)]" :
+    "border-l-transparent";
+
+  return (
+    <article className={`px-4 py-3 flex items-start justify-between gap-3 border-l-4 ${borderColor}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-mono text-xs font-bold text-[var(--text-primary)] flex items-center gap-1">
+            {category?.emoji} {category?.label || obs.category}
+          </span>
+          {obs.animals && (
+            <span className="badge badge-xs font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none">
+              {obs.animals.identifier}
+            </span>
+          )}
+          {obs.severity !== "normal" && (
+            <span className={`badge badge-xs font-mono border-none font-bold ${
+              obs.severity === "urgent"
+                ? "bg-[var(--accent-danger)] text-white"
+                : "bg-[var(--accent-warn)] text-[var(--bg-base)]"
+            }`}>
+              {obs.severity.toUpperCase()}
+            </span>
+          )}
+          {obs.follow_up_needed && !obs.follow_up_resolved && (
+            <span className="badge badge-xs font-mono bg-[var(--bg-elevated)] text-[var(--accent-warn)] border border-[var(--accent-warn)]">
+              Follow-up needed
+            </span>
+          )}
+          {obs.follow_up_resolved && (
+            <span className="badge badge-xs font-mono bg-[var(--bg-elevated)] text-[var(--accent-primary)] border border-[var(--accent-primary)]">
+              Resolved
+            </span>
+          )}
+        </div>
+
+        {obs.selected_options?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1">
+            {obs.selected_options.map((opt) => (
+              <span
+                key={opt}
+                className="badge badge-sm font-mono bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border)]"
+              >
+                {opt}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {obs.detail && (
+          <p className="font-mono text-xs text-[var(--text-muted)] leading-relaxed m-0">{obs.detail}</p>
+        )}
+
+        {obs.follow_up_needed && !obs.follow_up_resolved && onResolve && (
+          <button
+            type="button"
+            onClick={() => onResolve(obs.id)}
+            className="btn btn-xs font-mono mt-2 bg-[var(--accent-primary)] text-[var(--bg-base)] border-none gap-1"
+          >
+            <CheckCircle size={10} /> Mark resolved
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="font-mono text-[10px] text-[var(--text-muted)] whitespace-nowrap">{time}</span>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(obs)}
+            className="btn btn-xs btn-ghost text-[var(--text-muted)] hover:text-[var(--accent-primary)] p-1"
+            aria-label="Edit observation"
+          >
+            <Pencil size={12} />
+          </button>
+        )}
+        {onDelete && !confirmDelete && (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="btn btn-xs btn-ghost text-[var(--text-muted)] hover:text-[var(--accent-danger)] p-1"
+            aria-label="Delete observation"
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
+        {confirmDelete && (
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={async () => {
+                await onDelete(obs.id);
+                setConfirmDelete(false);
+              }}
+              className="btn btn-xs font-mono bg-[var(--accent-danger)] text-white border-none"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="btn btn-xs btn-ghost font-mono border-[var(--border)]"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
   );
 }
 
