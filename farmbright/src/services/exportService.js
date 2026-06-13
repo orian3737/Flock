@@ -77,9 +77,9 @@ async function fetchFeedingLog(flockIds, startDate, endDate) {
     const prod = prodLookup[`${r.flock_id}:${r.date}`];
     return {
       ...r,
-      weight_per_bird: (r.total_weight || 0) / hc,
+      weight_per_animal: (r.total_weight || 0) / hc,
       cost_total,
-      cost_per_bird: cost_total / hc,
+      cost_per_animal: cost_total / hc,
       egg_count: prod?.egg_count ?? null,
       water_consumed: prod?.water_consumed ?? null,
       session_notes: prod?.notes ?? null,
@@ -179,8 +179,8 @@ export async function generateCSV({ userId, reportTypes, flockIds, startDate, en
     const data = await fetchFeedingLog(flockIds, startDate, endDate);
     const headers = [
       'Date', 'Time', 'Flock', 'Breed', 'Type',
-      'Feed', 'Weight (lbs)', 'Wt/Bird',
-      'Cost ($)', 'Cost/Bird ($)', 'Water (gal)', 'Eggs', 'Notes', 'Method',
+      'Feed', 'Weight (lbs)', 'Wt/Animal',
+      'Cost ($)', 'Cost/Animal ($)', 'Water (gal)', 'Eggs', 'Notes', 'Method',
     ];
     const rows = data.map((r) => [
       r.date,
@@ -190,9 +190,9 @@ export async function generateCSV({ userId, reportTypes, flockIds, startDate, en
       r.flocks?.breeds?.animal_types?.name || '',
       r.feed_types?.name || '',
       r.total_weight?.toFixed(2) || '0',
-      r.weight_per_bird?.toFixed(3) || '0',
+      r.weight_per_animal?.toFixed(3) || '0',
       r.cost_total?.toFixed(2) || '0',
-      r.cost_per_bird?.toFixed(4) || '0',
+      r.cost_per_animal?.toFixed(4) || '0',
       r.water_consumed ?? '—',
       r.egg_count ?? '—',
       r.session_notes || '',
@@ -234,7 +234,7 @@ export async function generateCSV({ userId, reportTypes, flockIds, startDate, en
     const data = await fetchFinancials(flockIds, startDate, endDate);
     const headers = ['Flock', 'Total Feed Cost ($)'];
     const rows = data.map((r) => [r.name, r.total_cost?.toFixed(2) || '0']);
-    results.push({ name: 'Financials', headers, rows });
+    results.push({ name: 'Costs', headers, rows });
   }
 
   if (reportTypes.includes('observations')) {
@@ -315,7 +315,7 @@ export async function generatePDF({ userId, farmName, reportTypes, flockIds, sta
   const labels = {
     feeding_log:       '• Feeding Log',
     production_log:    '• Production Log',
-    financial_summary: '• Financial Summary',
+    financial_summary: '• Cost Summary',
     inventory:         '• Feed Inventory',
     observations:      '• Observations & Notes',
   };
@@ -421,7 +421,7 @@ export async function generatePDF({ userId, farmName, reportTypes, flockIds, sta
   }
 
   if (reportTypes.includes('financial_summary')) {
-    const startY = addSectionHeader('Financial Summary');
+    const startY = addSectionHeader('Cost Summary');
     const data = await fetchFinancials(flockIds, startDate, endDate);
     const total = data.reduce((s, r) => s + r.total_cost, 0);
     autoTable(doc, {
@@ -568,9 +568,9 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
     { header: 'Type',          key: 'type',     width: 12 },
     { header: 'Feed',          key: 'feed',     width: 22 },
     { header: 'Weight (lbs)',  key: 'weight',   width: 12 },
-    { header: 'Wt/Bird',       key: 'wtbird',   width: 10 },
+    { header: 'Wt/Animal',     key: 'wtanimal', width: 10 },
     { header: 'Cost ($)',      key: 'cost',     width: 10 },
-    { header: 'Cost/Bird ($)', key: 'costbird', width: 12 },
+    { header: 'Cost/Animal ($)', key: 'costanimal', width: 14 },
     { header: 'Water (gal)',   key: 'water',    width: 10 },
     { header: 'Eggs',          key: 'eggs',     width: 8  },
     { header: 'Notes',         key: 'notes',    width: 25 },
@@ -587,9 +587,9 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
       type:     r.flocks?.breeds?.animal_types?.name || '',
       feed:     r.feed_types?.name || '',
       weight:   r.total_weight,
-      wtbird:   r.weight_per_bird,
+      wtanimal: r.weight_per_animal,
       cost:     r.cost_total,
-      costbird: r.cost_per_bird,
+      costanimal: r.cost_per_animal,
       water:    r.water_consumed,
       eggs:     r.egg_count,
       notes:    r.session_notes || '',
@@ -598,9 +598,9 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
   });
 
   feedSheet.getColumn('weight').numFmt   = '0.00';
-  feedSheet.getColumn('wtbird').numFmt   = '0.000';
+  feedSheet.getColumn('wtanimal').numFmt = '0.000';
   feedSheet.getColumn('cost').numFmt     = '$#,##0.00';
-  feedSheet.getColumn('costbird').numFmt = '$#,##0.0000';
+  feedSheet.getColumn('costanimal').numFmt = '$#,##0.0000';
 
   const feedLastRow = feedSheet.rowCount;
   const feedTotals  = feedSheet.addRow({
@@ -682,8 +682,8 @@ export async function generateXLSX({ userId, farmName, flockIds, startDate, endD
   styleDataRows(invSheet, 2, invSheet.rowCount);
   autoWidth(invSheet);
 
-  // ── Financials sheet ──────────────────────────────────────────────────────
-  const finSheet = wb.addWorksheet('Financials');
+  // ── Costs sheet ───────────────────────────────────────────────────────────
+  const finSheet = wb.addWorksheet('Costs');
   styleHeader(finSheet, [
     { header: 'Flock',           key: 'flock', width: 25 },
     { header: 'Total Feed Cost', key: 'cost',  width: 18 },

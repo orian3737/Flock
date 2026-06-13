@@ -27,7 +27,7 @@ const navItems = [
   { to: "/log", label: "Farm Log", icon: ClipboardList },
   { to: "/scale-house", label: "Scale House", icon: Scale },
   { to: "/inventory", label: "Inventory", icon: Package },
-  { to: "/financials", label: "Financials", icon: TrendingUp },
+  { to: "/financials", label: "Costs", icon: TrendingUp },
   { to: "/export", label: "Export", icon: Download },
   { to: "/farm-setup", label: "Farm Setup", icon: Tractor },
   { to: "/settings", label: "Settings", icon: Settings },

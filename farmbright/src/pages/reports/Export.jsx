@@ -10,7 +10,7 @@ import { getLocalDateString, getDaysAgoString, getMonthStartString } from "../..
 const reportOptions = [
   { id: "feeding_log", label: "Feeding Log" },
   { id: "production_log", label: "Production" },
-  { id: "financial_summary", label: "Financials" },
+  { id: "financial_summary", label: "Costs" },
   { id: "inventory", label: "Inventory" },
   { id: "observations", label: "Observations & Notes" },
 ];
@@ -50,7 +50,7 @@ function Export() {
   }, [userId, effectiveReportType, dateRange.start_date, dateRange.end_date]);
 
   const selectedFlockIds = allFlocks ? [] : flockIds;
-  const previewSections = useMemo(() => ["Summary", "Feeding Log", "Production", "Inventory", "Financials"], []);
+  const previewSections = useMemo(() => ["Summary", "Feeding Log", "Production", "Inventory", "Costs"], []);
 
   function updatePreset(nextPreset) {
     setRangePreset(nextPreset);

@@ -14,11 +14,6 @@ const numberFormatter = new Intl.NumberFormat("en-US");
 function formatMoney(value = 0)  { return moneyFormatter.format(Number(value) || 0); }
 function formatNumber(value = 0) { return numberFormatter.format(Number(value) || 0); }
 
-function formatSignedMoney(value = 0) {
-  const n = Number(value) || 0;
-  return `${n >= 0 ? "+" : "-"}${formatMoney(Math.abs(n))}`;
-}
-
 function formatTime(value) {
   if (!value) return "";
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
@@ -97,7 +92,6 @@ function Dashboard() {
   const feedProgress  = totalFlocks ? Math.round((fedCount / totalFlocks) * 100) : 0;
   const feedingPanelState = allFed ? "complete" : hasStarted ? "compact" : "prominent";
   const flocksFedTone = allFed ? "var(--accent-primary)" : hasStarted ? "var(--accent-warn)" : "var(--border)";
-  const pnlPositive   = Number(yesterday.net_pl || 0) >= 0;
 
   async function handleDismissAlert(alertId) {
     await dismissInventoryAlert(alertId);
@@ -277,15 +271,13 @@ function Dashboard() {
 
           <article
             className="bg-[var(--bg-surface)] border border-[var(--border)] border-l-4 rounded-lg grid gap-2.5 min-h-[140px] lg:min-h-[188px] p-4 lg:p-5 min-w-0"
-            style={{ borderLeftColor: pnlPositive ? "var(--accent-primary)" : "var(--accent-danger)" }}
+            style={{ borderLeftColor: "var(--accent-danger)" }}
           >
-            <div
-              className="number-font text-[22px] lg:text-[36px] font-bold leading-none break-all"
-              style={{ color: pnlPositive ? "var(--accent-primary)" : "var(--accent-danger)" }}
-            >
-              {formatSignedMoney(yesterday.net_pl)}
+            <div className="number-font text-[22px] lg:text-[36px] font-bold leading-none break-all">
+              {formatMoney(yesterday.total_feed_cost)}
             </div>
-            <div className="text-[var(--text-secondary)] text-xs uppercase">Yesterday's P&amp;L</div>
+            <div className="text-[var(--text-secondary)] text-xs uppercase">Yesterday's Feed Cost</div>
+            <p className="text-[var(--text-muted)] text-xs m-0">{yesterday.flocks_fed ?? 0} flocks fed</p>
           </article>
         </div>
       </div>

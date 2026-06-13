@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { label: 'Home',     icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Feed',     icon: Scale,           path: '/scale-house' },
   { label: 'Log',      icon: ClipboardList,   path: '/log' },
-  { label: 'Finances', icon: TrendingUp,      path: '/financials' },
+  { label: 'Costs',    icon: TrendingUp,      path: '/financials' },
   { label: 'More',     icon: Menu,            path: null }, // opens sidebar
 ]
 

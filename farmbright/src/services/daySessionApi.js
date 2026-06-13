@@ -48,8 +48,8 @@ export async function getTodaySession(date = null) {
     return {
       ...e,
       cost_total,
-      weight_per_bird: (e.total_weight || 0) / headcount,
-      cost_per_bird: cost_total / headcount,
+      weight_per_animal: (e.total_weight || 0) / headcount,
+      cost_per_animal: cost_total / headcount,
     };
   });
   const production = prodResult.data || [];
@@ -74,7 +74,7 @@ export async function getTodaySession(date = null) {
       total_eggs:        totalEggs,
       total_casualties:  totalCasualties,
       total_additions:   totalAdditions,
-      cost_per_bird_avg: flocksWithFeeding.length > 0 ? totalFeedCost / flocksWithFeeding.length : 0,
+      cost_per_animal_avg: flocksWithFeeding.length > 0 ? totalFeedCost / flocksWithFeeding.length : 0,
     },
   };
 }

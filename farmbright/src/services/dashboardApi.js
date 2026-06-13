@@ -24,7 +24,6 @@ export async function getDashboardOverview() {
     todayProductionResult,
     yesterdayFeedingResult,
     yesterdayProductionResult,
-    yesterdayRevenueResult,
     alertsResult,
   ] = await Promise.all([
     supabase
@@ -54,10 +53,6 @@ export async function getDashboardOverview() {
     supabase
       .from("production_logs")
       .select("egg_count")
-      .eq("date", yesterday),
-    supabase
-      .from("revenues")
-      .select("amount")
       .eq("date", yesterday),
     supabase
       .from("alerts")
@@ -108,8 +103,12 @@ export async function getDashboardOverview() {
   const yFeedCost = (yesterdayFeedingResult.data || [])
     .filter((e) => flockIds.has(e.flock_id))
     .reduce((s, e) => s + (e.total_weight || 0) * (e.cost_per_lb_at_time || 0), 0);
+  const yFedFlocks = new Set(
+    (yesterdayFeedingResult.data || [])
+      .filter((e) => flockIds.has(e.flock_id))
+      .map((e) => e.flock_id),
+  );
   const yEggs = (yesterdayProductionResult.data || []).reduce((s, p) => s + (p.egg_count || 0), 0);
-  const yRevenue = (yesterdayRevenueResult.data || []).reduce((s, r) => s + (r.amount || 0), 0);
 
   // Deduplicate active alerts
   const seen = new Set();
@@ -163,7 +162,7 @@ export async function getDashboardOverview() {
     yesterday: {
       total_feed_cost: Math.round(yFeedCost * 100) / 100,
       total_eggs: yEggs,
-      net_pl: Math.round((yRevenue - yFeedCost) * 100) / 100,
+      flocks_fed: yFedFlocks.size,
     },
     feed_stocks: (feedTypesResult.data || []).map((ft) => ({
       name: ft.name,

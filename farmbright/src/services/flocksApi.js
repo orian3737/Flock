@@ -18,6 +18,7 @@ export async function getFlocks() {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount, individual_tracking_enabled, created_at,
+         egg_price_per_dozen, meat_price_per_lb, meat_price_per_bird,
          breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
            id, feed_type_id,
@@ -79,6 +80,9 @@ export async function getFlocks() {
       current_headcount: flock.current_headcount,
       individual_tracking_enabled: flock.individual_tracking_enabled ?? false,
       created_at: flock.created_at,
+      egg_price_per_dozen: Number(flock.egg_price_per_dozen || 0),
+      meat_price_per_lb: Number(flock.meat_price_per_lb || 0),
+      meat_price_per_bird: Number(flock.meat_price_per_bird || 0),
       breed_name: flock.breeds?.name || "",
       animal_class_name: flock.breeds?.animal_types?.animal_classes?.name || "",
       class_type: flock.breeds?.animal_types?.animal_classes?.class_type || 'other',
@@ -116,6 +120,7 @@ export async function getFlockDetail(flockId) {
       .from("flocks")
       .select(
         `id, name, designation, pen_name, current_headcount, individual_tracking_enabled, created_at,
+         egg_price_per_dozen, meat_price_per_lb, meat_price_per_bird,
          breeds ( name, animal_types ( name, emoji, produces_eggs, produces_milk, produces_meat, produces_young, working_animal, animal_classes ( name, class_type ) ) ),
          feed_assignments (
            id, feed_type_id,
@@ -190,6 +195,9 @@ export async function getFlockDetail(flockId) {
       pen_name: flock.pen_name,
       current_headcount: flock.current_headcount,
       individual_tracking_enabled: flock.individual_tracking_enabled ?? false,
+      egg_price_per_dozen: Number(flock.egg_price_per_dozen || 0),
+      meat_price_per_lb: Number(flock.meat_price_per_lb || 0),
+      meat_price_per_bird: Number(flock.meat_price_per_bird || 0),
       breed_name: flock.breeds?.name || "",
       animal_type_name: flock.breeds?.animal_types?.name || "",
       animal_class_name: flock.breeds?.animal_types?.animal_classes?.name || "",
@@ -213,7 +221,7 @@ export async function getFlockDetail(flockId) {
     stats: {
       total_feed_cost_alltime: round2(totalFeedCost),
       total_eggs_alltime: totalEggs,
-      avg_cost_per_bird_per_day: round4(last30FeedCost / headcount / days),
+      avg_cost_per_animal_per_day: round4(last30FeedCost / headcount / days),
       avg_eggs_per_day: isLayer ? round2(last30Eggs / days) : null,
       current_cost_per_dozen: costPerDozen !== null ? round2(costPerDozen) : null,
     },
@@ -339,9 +347,9 @@ function feedingJson(event, headcount) {
     timestamp: event.timestamp,
     feed_name: event.feed_types?.name || "",
     total_weight: round2(event.total_weight || 0),
-    weight_per_bird: round3((event.total_weight || 0) / hc),
+    weight_per_animal: round3((event.total_weight || 0) / hc),
     cost_total: round2(costTotal),
-    cost_per_bird: round3(costTotal / hc),
+    cost_per_animal: round3(costTotal / hc),
     input_method: event.input_method,
   };
 }

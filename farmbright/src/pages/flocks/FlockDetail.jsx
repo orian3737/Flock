@@ -7,7 +7,6 @@ import ObservationEntry from "../../components/ObservationEntry";
 import AnimalDrawer from "../../components/AnimalDrawer";
 import { FarmContext } from "../../context/FarmContext";
 import { getFlockDetail, logCasualty, logProduction } from "../../services/flocksApi";
-import { getFlockYoungSales, logYoungSale } from "../../services/revenueApi";
 import { getFlockAnimals, getObservationHistory, enableFlockTracking, createAnimal, deleteObservation, resolveFollowUp } from "../../services/observationsApi";
 import { supabase } from "../../services/supabaseClient";
 import { getClassConfig, OBSERVATION_CATEGORIES } from "../../utils/animalClass";
@@ -59,7 +58,6 @@ function FlockDetail() {
   const [modal, setModal] = useState(null);
   const [showLitterModal, setShowLitterModal] = useState(false);
   const [litterForm, setLitterForm] = useState({ date: todayString(), litter_count: 1, litter_size: 0, litter_notes: '' });
-  const [youngSales, setYoungSales] = useState([]);
   const [litterLogs, setLitterLogs] = useState([]);
   const [detailTab, setDetailTab] = useState('observations');
   const [flockObs, setFlockObs] = useState([]);
@@ -83,12 +81,8 @@ function FlockDetail() {
   async function refresh() {
     setLoading(true);
     try {
-      const [flockDetail, sales] = await Promise.all([
-        getFlockDetail(id),
-        getFlockYoungSales(id).catch(() => []),
-      ]);
+      const flockDetail = await getFlockDetail(id);
       setDetail(flockDetail);
-      setYoungSales(sales);
       const classType = flockDetail?.flock?.class_type || 'other';
       if (getClassConfig(classType).litterTracking) {
         const { data: litters } = await supabase
@@ -141,17 +135,6 @@ function FlockDetail() {
       await logCasualty(id, payload);
       setModal(null);
       if (await refresh()) setFeedback({ type: "success", message: "Headcount updated" });
-    } catch (error) {
-      setFeedback({ type: "error", message: formatError(error) });
-    }
-  }
-
-  async function submitYoungSale(payload) {
-    setFeedback(null);
-    try {
-      await logYoungSale({ ...payload, flock_id: Number(id) });
-      setModal(null);
-      if (await refresh()) setFeedback({ type: "success", message: `${animalClass.youngTerm} sale recorded` });
     } catch (error) {
       setFeedback({ type: "error", message: formatError(error) });
     }
@@ -232,11 +215,6 @@ function FlockDetail() {
               Log Litter
             </button>
           )}
-          {animalClass.producesYoung && (
-            <button className="btn btn-ghost font-mono text-sm border border-[var(--border)]" type="button" onClick={() => setModal("young_sale")}>
-              Sell {animalClass.youngTerm}
-            </button>
-          )}
           <button className="btn btn-ghost font-mono text-sm border border-[var(--border)]" type="button" onClick={() => setModal("casualty")}>
             Log Headcount Change
           </button>
@@ -270,14 +248,14 @@ function FlockDetail() {
             </div>
             <div style={{ padding: "0 18px 18px" }}>
               <DataTable
-                columns={["Date", "Feed", "Weight", "Wt/Bird", "Cost", "$/Bird"]}
+                columns={["Date", "Feed", "Weight", `Wt/${animalClass.headTermSingular}`, "Cost", `Cost/${animalClass.headTermSingular}`]}
                 rows={(detail.recent_feedings || []).map((e) => [
                   e.date,
                   e.feed_name,
                   `${formatNumber(e.total_weight, 2)} lbs`,
-                  formatNumber(e.weight_per_bird, 3),
+                  formatNumber(e.weight_per_animal, 3),
                   formatMoney(e.cost_total),
-                  formatMoney(e.cost_per_bird),
+                  formatMoney(e.cost_per_animal),
                 ])}
                 empty="No feeding logged yet"
               />
@@ -325,30 +303,6 @@ function FlockDetail() {
                     e.litter_notes || "",
                   ])}
                   empty="No litter events logged yet"
-                />
-              </div>
-            </section>
-          ) : null}
-
-          {animalClass.producesYoung && youngSales.length > 0 ? (
-            <section className="settings-panel">
-              <div className="section-title-row" style={{ padding: "14px 18px" }}>
-                <h2 className="display-font">{animalClass.youngTerm} Sales</h2>
-                <button className="text-link-button" type="button" onClick={() => setModal("young_sale")}>
-                  Record sale
-                </button>
-              </div>
-              <div style={{ padding: "0 18px 18px" }}>
-                <DataTable
-                  columns={["Date", "Qty", "$/Head", "Total", "Notes"]}
-                  rows={youngSales.map((s) => [
-                    s.date,
-                    s.quantity,
-                    formatMoney(s.price_per_head),
-                    formatMoney(s.total_amount),
-                    s.notes || "",
-                  ])}
-                  empty="No sales recorded"
                 />
               </div>
             </section>
@@ -663,13 +617,6 @@ function FlockDetail() {
           }}
         />
       ) : null}
-      {modal === "young_sale" ? (
-        <YoungSaleModal
-          youngTerm={animalClass.youngTerm}
-          onClose={() => setModal(null)}
-          onSubmit={submitYoungSale}
-        />
-      ) : null}
       {modal === "casualty" ? (
         <HeadcountModal onClose={() => setModal(null)} onSubmit={submitCasualty} />
       ) : null}
@@ -967,53 +914,6 @@ function HeadcountModal({ additionOnly = false, additionLabel, title, onClose, o
         <div className="modal-actions mt-2">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-button" type="submit">Save</button>
-        </div>
-      </form>
-    </ModalFrame>
-  );
-}
-
-function YoungSaleModal({ youngTerm, onClose, onSubmit }) {
-  const [date, setDate] = useState(todayString());
-  const [quantity, setQuantity] = useState("");
-  const [pricePerHead, setPricePerHead] = useState("");
-  const [notes, setNotes] = useState("");
-
-  function submit(event) {
-    event.preventDefault();
-    onSubmit({
-      date,
-      quantity: Number(quantity),
-      price_per_head: Number(pricePerHead),
-      notes,
-    });
-  }
-
-  const total = (Number(quantity) || 0) * (Number(pricePerHead) || 0);
-
-  return (
-    <ModalFrame title={`Sell ${youngTerm}`} onClose={onClose}>
-      <form onSubmit={submit}>
-        <div className="settings-form-grid">
-          <label className="field"><span>Date</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-          <label className="field">
-            <span>{youngTerm} sold</span>
-            <input min="1" required step="1" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-          </label>
-          <label className="field">
-            <span>Price per head ($)</span>
-            <input min="0" required step="0.01" type="number" value={pricePerHead} onChange={(e) => setPricePerHead(e.target.value)} />
-          </label>
-          <label className="field"><span>Notes</span><input value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-        </div>
-        {total > 0 && (
-          <p className="font-mono text-xs text-[var(--accent-primary)] mt-2">
-            Total: {formatMoney(total)}
-          </p>
-        )}
-        <div className="modal-actions mt-2">
-          <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" type="submit">Record Sale</button>
         </div>
       </form>
     </ModalFrame>

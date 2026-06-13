@@ -76,6 +76,11 @@ function flockIcon(animalClassName = "") {
   return match ? animalIcons[match] : "\u{1f43e}";
 }
 
+function headTermForFlock(flock) {
+  const classType = flock?.breeds?.animal_types?.animal_classes?.class_type || "other";
+  return getClassConfig(classType).headTermSingular?.toLowerCase() || "animal";
+}
+
 function safeId(value) {
   return value === "" || value === null || value === undefined ? null : Number(value);
 }
@@ -150,9 +155,9 @@ function ScaleHouse() {
   const currentFeed = currentFlock?.assigned_feeds?.find((feed) => feed.feed_type_id === Number(selectedFeed));
   const effectiveWeight = Number(feedWeight) || 0;
   const adjustedHeadcount = Math.max((currentFlock?.current_headcount || 0) + headcountChange, 0);
-  const weightPerBird = adjustedHeadcount ? effectiveWeight / adjustedHeadcount : 0;
+  const weightPerAnimal = adjustedHeadcount ? effectiveWeight / adjustedHeadcount : 0;
   const costTotal = currentFeed ? effectiveWeight * (currentFeed.cost_per_lb ?? currentFeed.cost_per_unit ?? 0) : 0;
-  const costPerBird = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
+  const costPerAnimal = adjustedHeadcount ? costTotal / adjustedHeadcount : 0;
   const canLog = currentFlock && currentFeed && effectiveWeight > 0 && (headcountChange >= 0 || casualtyNotes.trim());
   const blockReason = !currentFlock
     ? 'No flock selected'
@@ -171,6 +176,7 @@ function ScaleHouse() {
     producesYoung: currentFlock.produces_young ?? _classDefaults.producesYoung,
     workingAnimal: currentFlock.working_animal ?? _classDefaults.workingAnimal,
   } : _classDefaults;
+  const currentHeadTerm = currentAnimalClass.headTermSingular?.toLowerCase() || "animal";
   const showEggs = currentFlock && currentAnimalClass.producesEggs && !productionSkipped;
   const showLitter = currentFlock && currentAnimalClass.litterTracking && !productionSkipped;
   const showMilk = currentFlock && currentAnimalClass.producesMilk;
@@ -510,7 +516,7 @@ function ScaleHouse() {
             <SummaryTile label="Feed Used" value={`${formatNumber(summary?.total_feed_used_lbs)} lbs`} />
             <SummaryTile label="Total Cost" value={formatMoney(summary?.total_feed_cost)} />
             <SummaryTile label="Total Eggs" value={summary?.total_eggs || 0} />
-            <SummaryTile label="Cost/Bird" value={formatMoney(summary?.cost_per_bird)} />
+            <SummaryTile label="Cost/Animal" value={formatMoney(summary?.cost_per_animal)} />
             <SummaryTile label="Casualties" value={summary?.casualties || 0} />
           </div>
           <div className="overflow-x-auto">
@@ -622,7 +628,7 @@ function ScaleHouse() {
           blockReason={blockReason}
           casualtyNotes={casualtyNotes}
           canLog={canLog}
-          costPerBird={costPerBird}
+          costPerAnimal={costPerAnimal}
           costTotal={costTotal}
           currentAnimalClass={currentAnimalClass}
           currentFeed={currentFeed}
@@ -681,7 +687,7 @@ function ScaleHouse() {
           showProduction={showProduction}
           stepLabel={isDailyMode ? `Step ${currentIndex + 1} of ${queue.length}` : "Quick Entry"}
           waterConsumed={waterConsumed}
-          weightPerBird={weightPerBird}
+          weightPerAnimal={weightPerAnimal}
           onQuickSubmit={handleSubmit}
           flash={flash}
           showCostDetails={showCostDetails}
@@ -951,7 +957,7 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
                   { label: "Feed Used",   value: `${formatNumber(sessionData.summary.total_feed_used)} lbs` },
                   { label: "Total Cost",  value: formatMoney(sessionData.summary.total_feed_cost) },
                   { label: "Total Eggs",  value: formatNumber(sessionData.summary.total_eggs, 0) },
-                  { label: "Cost/Bird",   value: formatMoney(sessionData.summary.cost_per_bird_avg) },
+                  { label: "Cost/Animal", value: formatMoney(sessionData.summary.cost_per_animal_avg) },
                   { label: "Casualties",  value: sessionData.summary.total_casualties },
                 ].map(({ label, value }) => (
                   <div key={label}>
@@ -970,7 +976,7 @@ function ReviewPanel({ date, setDate, sessionData, sessionLoading, queue, isDail
                   <h3 className="font-mono text-sm font-bold text-[var(--text-primary)] m-0">{flock?.name}</h3>
                   {feedings.map((f) => (
                     <div key={f.id} className="flex justify-between text-xs font-mono text-[var(--text-secondary)]">
-                      <span>{f.feed_types?.name} — {formatNumber(f.total_weight, 1)} lbs · {formatNumber(f.weight_per_bird, 2)} lbs/bird</span>
+                      <span>{f.feed_types?.name} — {formatNumber(f.total_weight, 1)} lbs · {formatNumber(f.weight_per_animal, 2)} lbs/{headTermForFlock(f.flocks)}</span>
                       <span className="ml-2 flex-none">{formatMoney(f.cost_total)}</span>
                     </div>
                   ))}
@@ -1130,9 +1136,6 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
       await updateFeedingEvent(feedingEvent.id, {
         total_weight:  weight,
         feed_type_id:  Number(editForm.feedTypeId),
-        weight_per_bird: headcount > 0 ? weight / headcount : 0,
-        cost_total:    newCostTotal,
-        cost_per_bird: headcount > 0 ? newCostTotal / headcount : 0,
         input_method:  editForm.inputMethod,
       });
       if (productionLog) {
@@ -1198,8 +1201,8 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
     const feedOpt   = editFeedOptions.find(f => f.feed_type_id === Number(editForm.feedTypeId));
     const cpu       = feedOpt?.cost_per_unit ?? feedOpt?.cost_per_lb ?? 0;
     const total     = weight * cpu;
-    return { total, perBird: headcount > 0 ? total / headcount : 0 };
-  })() : { total: 0, perBird: 0 };
+    return { total, perAnimal: headcount > 0 ? total / headcount : 0 };
+  })() : { total: 0, perAnimal: 0 };
 
   return (
     <>
@@ -1317,7 +1320,7 @@ function EditPanel({ date, setDate, sessionData, sessionLoading, queue, isDailyM
                 </div>
                 {editCostCalc.total > 0 && (
                   <p className="font-mono text-xs text-[var(--text-muted)] m-0">
-                    New cost: {formatMoney(editCostCalc.total)} · {formatMoney(editCostCalc.perBird)}/bird
+                    New cost: {formatMoney(editCostCalc.total)} · {formatMoney(editCostCalc.perAnimal)}/animal
                   </p>
                 )}
               </section>
@@ -1691,7 +1694,7 @@ function ScaleEntryCard(props) {
     blockReason,
     casualtyNotes,
     canLog,
-    costPerBird,
+    costPerAnimal,
     costTotal,
     currentAnimalClass,
     currentFeed,
@@ -1747,7 +1750,7 @@ function ScaleEntryCard(props) {
     showProduction,
     stepLabel,
     waterConsumed,
-    weightPerBird,
+    weightPerAnimal,
     onQuickSubmit,
     flash,
     showCostDetails,
@@ -2345,9 +2348,9 @@ function ScaleEntryCard(props) {
             {showCostDetails && (
               <div className="grid grid-cols-3 gap-2 mt-2">
                 <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
-                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">lbs/bird</p>
+                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">lbs/{currentHeadTerm}</p>
                   <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
-                    {effectiveWeight > 0 && adjustedHeadcount > 0 ? formatNumber(weightPerBird, 3) : "—"}
+                    {effectiveWeight > 0 && adjustedHeadcount > 0 ? formatNumber(weightPerAnimal, 3) : "—"}
                   </p>
                 </div>
                 <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
@@ -2357,9 +2360,9 @@ function ScaleEntryCard(props) {
                   </p>
                 </div>
                 <div className="bg-[var(--bg-elevated)] rounded-lg p-2 border border-[var(--border)] text-center">
-                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">cost/bird</p>
+                  <p className="font-mono text-xs text-[var(--text-muted)] mb-1 m-0">cost/{currentHeadTerm}</p>
                   <p className="font-mono text-sm text-[var(--text-primary)] font-bold m-0">
-                    {effectiveWeight > 0 && currentFeed && adjustedHeadcount > 0 ? formatMoney(costPerBird) : "—"}
+                    {effectiveWeight > 0 && currentFeed && adjustedHeadcount > 0 ? formatMoney(costPerAnimal) : "—"}
                   </p>
                 </div>
               </div>

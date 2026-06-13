@@ -180,6 +180,9 @@ export function updateFlock(id, payload) {
   if ("designation" in payload) patch.designation = payload.designation;
   if ("pen_name" in payload) patch.pen_name = payload.pen_name?.trim() || null;
   if ("current_headcount" in payload) patch.current_headcount = Number(payload.current_headcount);
+  if ("egg_price_per_dozen" in payload) patch.egg_price_per_dozen = Number(payload.egg_price_per_dozen || 0);
+  if ("meat_price_per_lb" in payload) patch.meat_price_per_lb = Number(payload.meat_price_per_lb || 0);
+  if ("meat_price_per_bird" in payload) patch.meat_price_per_bird = Number(payload.meat_price_per_bird || 0);
   return update("flocks", id, patch, "Could not update flock.");
 }
 
@@ -266,7 +269,7 @@ export async function getFullHierarchy(userId) {
   const breedIds = (breeds || []).map(b => b.id);
 
   const { data: flocks, error: fe } = breedIds.length
-    ? await supabase.from('flocks').select('id, breed_id, name, designation, pen_name, current_headcount, created_at').in('breed_id', breedIds).order('name')
+    ? await supabase.from('flocks').select('id, breed_id, name, designation, pen_name, current_headcount, created_at, egg_price_per_dozen, meat_price_per_lb, meat_price_per_bird').in('breed_id', breedIds).order('name')
     : { data: [], error: null };
   if (fe) throw fmt(fe, 'Could not load flocks.');
 

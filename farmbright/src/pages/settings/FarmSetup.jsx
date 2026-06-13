@@ -95,6 +95,9 @@ function FarmSetup() {
         await updateFlock(id, {
           name: draft.name, designation: draft.designation,
           pen_name: draft.pen_name, current_headcount: Number(draft.current_headcount || 0),
+          egg_price_per_dozen: Number(draft.egg_price_per_dozen || 0),
+          meat_price_per_lb: Number(draft.meat_price_per_lb || 0),
+          meat_price_per_bird: Number(draft.meat_price_per_bird || 0),
         });
       }
       if (type === "feedType") {
@@ -399,6 +402,7 @@ function FarmSetup() {
                           <div className="flock-editor-list">
                             {(breed.flocks || []).map(flock => (
                               <FlockEditor
+                                animalType={animalType}
                                 draft={draft}
                                 editing={isEditing("flock", flock.id)}
                                 feedTypes={summary.feed_types}
@@ -635,7 +639,7 @@ function RowActions({ editing, onCancel, onDelete, onEdit, onSave }) {
   );
 }
 
-function FlockEditor({ draft, editing, feedTypes, flock, onCancel, onChange, onDelete, onEdit, onSave, onOpenAssignModal }) {
+function FlockEditor({ animalType, draft, editing, feedTypes, flock, onCancel, onChange, onDelete, onEdit, onSave, onOpenAssignModal }) {
   const source = editing ? draft : flock;
   return (
     <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border)] overflow-hidden mb-3">
@@ -660,6 +664,45 @@ function FlockEditor({ draft, editing, feedTypes, flock, onCancel, onChange, onD
                 {designations.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </label>
+            {animalType?.produces_eggs ? (
+              <label className="field min-w-[150px]">
+                <span>Egg benchmark/dozen</span>
+                <input
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={source.egg_price_per_dozen ?? ""}
+                  onChange={e => onChange("egg_price_per_dozen", e.target.value)}
+                  placeholder="6.00"
+                />
+              </label>
+            ) : null}
+            {animalType?.produces_meat ? (
+              <>
+                <label className="field min-w-[145px]">
+                  <span>Meat benchmark/lb</span>
+                  <input
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={source.meat_price_per_lb ?? ""}
+                    onChange={e => onChange("meat_price_per_lb", e.target.value)}
+                    placeholder="4.00"
+                  />
+                </label>
+                <label className="field min-w-[155px]">
+                  <span>Meat benchmark/head</span>
+                  <input
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={source.meat_price_per_bird ?? ""}
+                    onChange={e => onChange("meat_price_per_bird", e.target.value)}
+                    placeholder="120.00"
+                  />
+                </label>
+              </>
+            ) : null}
             <div className="ml-auto flex gap-2 shrink-0">
               <button type="button" onClick={onSave}
                 className="btn btn-xs font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none">

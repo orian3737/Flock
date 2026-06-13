@@ -17,7 +17,6 @@ function currentMonthRange() {
 
 function dateRange(startDate, endDate) {
   const dates = [];
-  // Parse as local midnight so iteration stays in the local calendar.
   const cur = new Date(`${startDate}T00:00:00`);
   const end = new Date(`${endDate}T00:00:00`);
   while (cur <= end) {
@@ -27,99 +26,69 @@ function dateRange(startDate, endDate) {
   return dates;
 }
 
-// ── Farm-level financial summary ─────────────────────────────
-
 export async function getFinancialSummary({ start_date, end_date } = {}) {
   const range = currentMonthRange();
   const sd = start_date || range.start_date;
   const ed = end_date || range.end_date;
 
-  const [flocksResult, feedingResult, revenueResult] = await Promise.all([
+  const [flocksResult, feedingResult] = await Promise.all([
     supabase.from("flocks").select("id, name"),
     supabase
       .from("feeding_events")
       .select("flock_id, date, total_weight, cost_per_lb_at_time")
       .gte("date", sd)
       .lte("date", ed),
-    supabase
-      .from("revenues")
-      .select("flock_id, date, amount")
-      .gte("date", sd)
-      .lte("date", ed),
   ]);
 
   if (flocksResult.error) throw fmt(flocksResult.error, "Could not load flocks.");
   if (feedingResult.error) throw fmt(feedingResult.error, "Could not load feeding data.");
-  if (revenueResult.error) throw fmt(revenueResult.error, "Could not load revenue data.");
 
   const flocks = flocksResult.data || [];
   const feedings = feedingResult.data || [];
-  const revenues = revenueResult.data || [];
-
-  // Build day-indexed maps
   const feedCostByDay = new Map();
   const feedCostByFlock = new Map();
+
   for (const ev of feedings) {
     const cost = (ev.total_weight || 0) * (ev.cost_per_lb_at_time || 0);
     feedCostByDay.set(ev.date, (feedCostByDay.get(ev.date) || 0) + cost);
     feedCostByFlock.set(ev.flock_id, (feedCostByFlock.get(ev.flock_id) || 0) + cost);
   }
 
-  const revenueByDay = new Map();
-  for (const r of revenues) {
-    revenueByDay.set(r.date, (revenueByDay.get(r.date) || 0) + r.amount);
-  }
-
-  const totalFeedCost = [...feedCostByDay.values()].reduce((s, v) => s + v, 0);
-  const totalRevenue = revenues.reduce((s, r) => s + r.amount, 0);
-
+  const totalFeedCost = [...feedCostByDay.values()].reduce((sum, value) => sum + value, 0);
   const topFlockId = flocks.reduce(
-    (best, f) => (feedCostByFlock.get(f.id) || 0) > (feedCostByFlock.get(best) || 0) ? f.id : best,
-    null
+    (best, flock) => (feedCostByFlock.get(flock.id) || 0) > (feedCostByFlock.get(best) || 0) ? flock.id : best,
+    null,
   );
-  const topFlock = flocks.find((f) => f.id === topFlockId);
+  const topFlock = flocks.find((flock) => flock.id === topFlockId);
 
   return {
-    total_feed_cost: Math.round(totalFeedCost * 100) / 100,
-    total_revenue: Math.round(totalRevenue * 100) / 100,
-    net_pl: Math.round((totalRevenue - totalFeedCost) * 100) / 100,
-    feed_cost_by_day: dateRange(sd, ed).map((date) => {
-      const cost = feedCostByDay.get(date) || 0;
-      const rev = revenueByDay.get(date) || 0;
-      return {
-        date,
-        cost: Math.round(cost * 100) / 100,
-        revenue: Math.round(rev * 100) / 100,
-        net: Math.round((rev - cost) * 100) / 100,
-      };
-    }),
+    total_feed_cost: round2(totalFeedCost),
+    feed_cost_by_day: dateRange(sd, ed).map((date) => ({
+      date,
+      cost: round2(feedCostByDay.get(date) || 0),
+    })),
     top_cost_flock: {
       name: topFlock?.name || null,
-      cost: Math.round((feedCostByFlock.get(topFlockId) || 0) * 100) / 100,
+      cost: round2(feedCostByFlock.get(topFlockId) || 0),
     },
   };
 }
-
-// ── Per-flock P&L list ────────────────────────────────────────
 
 export async function getFlockFinancials({ start_date, end_date } = {}) {
   const range = currentMonthRange();
   const sd = start_date || range.start_date;
   const ed = end_date || range.end_date;
 
-  const [flocksResult, feedingResult, revenueResult, productionResult] = await Promise.all([
+  const [flocksResult, feedingResult, productionResult] = await Promise.all([
     supabase
       .from("flocks")
-      .select("id, name, designation, current_headcount, breeds(name)")
+      .select(
+        "id, name, designation, current_headcount, egg_price_per_dozen, meat_price_per_lb, meat_price_per_bird, breeds(name, animal_types(produces_eggs, produces_meat))",
+      )
       .order("name"),
     supabase
       .from("feeding_events")
       .select("flock_id, date, total_weight, cost_per_lb_at_time")
-      .gte("date", sd)
-      .lte("date", ed),
-    supabase
-      .from("revenues")
-      .select("flock_id, date, amount")
       .gte("date", sd)
       .lte("date", ed),
     supabase
@@ -130,31 +99,26 @@ export async function getFlockFinancials({ start_date, end_date } = {}) {
   ]);
 
   if (flocksResult.error) throw fmt(flocksResult.error, "Could not load flocks.");
+  if (feedingResult.error) throw fmt(feedingResult.error, "Could not load feeding data.");
+  if (productionResult.error) throw fmt(productionResult.error, "Could not load production data.");
 
   const feedings = feedingResult.data || [];
-  const revenues = revenueResult.data || [];
   const production = productionResult.data || [];
 
   return (flocksResult.data || []).map((flock) => {
-    const flockFeedings = feedings.filter((e) => e.flock_id === flock.id);
-    const flockRevenues = revenues.filter((r) => r.flock_id === flock.id);
-    const flockProduction = production.filter((p) => p.flock_id === flock.id);
+    const flockFeedings = feedings.filter((event) => event.flock_id === flock.id);
+    const flockProduction = production.filter((event) => event.flock_id === flock.id);
 
     const feedCostByDay = new Map();
-    const revByDay = new Map();
     let totalFeedCost = 0;
-    let totalRevenue = 0;
 
     for (const ev of flockFeedings) {
       const cost = (ev.total_weight || 0) * (ev.cost_per_lb_at_time || 0);
       feedCostByDay.set(ev.date, (feedCostByDay.get(ev.date) || 0) + cost);
       totalFeedCost += cost;
     }
-    for (const r of flockRevenues) {
-      revByDay.set(r.date, (revByDay.get(r.date) || 0) + r.amount);
-      totalRevenue += r.amount;
-    }
-    const totalEggs = flockProduction.reduce((s, p) => s + (p.egg_count || 0), 0);
+
+    const totalEggs = flockProduction.reduce((sum, log) => sum + (log.egg_count || 0), 0);
     const headcount = flock.current_headcount || 0;
     const costPerDozen = totalEggs ? (totalFeedCost / totalEggs) * 12 : null;
 
@@ -164,69 +128,26 @@ export async function getFlockFinancials({ start_date, end_date } = {}) {
       breed_name: flock.breeds?.name || "",
       designation: flock.designation,
       headcount,
-      total_feed_cost: Math.round(totalFeedCost * 100) / 100,
-      total_revenue: Math.round(totalRevenue * 100) / 100,
-      net_pl: Math.round((totalRevenue - totalFeedCost) * 100) / 100,
-      cost_per_bird: headcount ? Math.round((totalFeedCost / headcount) * 1000) / 1000 : 0,
-      cost_per_dozen: costPerDozen !== null ? Math.round(costPerDozen * 100) / 100 : null,
-      daily_breakdown: dateRange(sd, ed).map((date) => {
-        const fc = feedCostByDay.get(date) || 0;
-        const rv = revByDay.get(date) || 0;
-        return {
-          date,
-          feed_cost: Math.round(fc * 100) / 100,
-          revenue: Math.round(rv * 100) / 100,
-          net: Math.round((rv - fc) * 100) / 100,
-        };
-      }),
+      produces_eggs: flock.breeds?.animal_types?.produces_eggs ?? false,
+      produces_meat: flock.breeds?.animal_types?.produces_meat ?? true,
+      egg_price_per_dozen: Number(flock.egg_price_per_dozen || 0),
+      meat_price_per_lb: Number(flock.meat_price_per_lb || 0),
+      meat_price_per_bird: Number(flock.meat_price_per_bird || 0),
+      total_feed_cost: round2(totalFeedCost),
+      cost_per_animal: headcount ? round3(totalFeedCost / headcount) : 0,
+      cost_per_dozen: costPerDozen !== null ? round2(costPerDozen) : null,
+      daily_breakdown: dateRange(sd, ed).map((date) => ({
+        date,
+        feed_cost: round2(feedCostByDay.get(date) || 0),
+      })),
     };
   });
 }
 
-// ── Revenue ───────────────────────────────────────────────────
-
-export async function createRevenue({ user_id, flock_id, date, amount, source, notes }) {
-  const { data, error } = await supabase
-    .from("revenues")
-    .insert({
-      user_id,
-      flock_id: flock_id || null,
-      date: date || getLocalDateString(),
-      amount: Number(amount),
-      source,
-      notes: notes || null,
-    })
-    .select("id, user_id, flock_id, date, amount, source, notes, flocks(name)")
-    .single();
-  if (error) throw fmt(error, "Could not create revenue entry.");
-  return revenueJson(data);
+function round2(n) {
+  return Math.round((n || 0) * 100) / 100;
 }
 
-export async function getRevenueHistory({ start_date, end_date } = {}) {
-  const range = currentMonthRange();
-  const sd = start_date || range.start_date;
-  const ed = end_date || range.end_date;
-
-  const { data, error } = await supabase
-    .from("revenues")
-    .select("id, user_id, flock_id, date, amount, source, notes, flocks(name)")
-    .gte("date", sd)
-    .lte("date", ed)
-    .order("date", { ascending: false })
-    .order("id", { ascending: false });
-  if (error) throw fmt(error, "Could not load revenue history.");
-  return (data || []).map(revenueJson);
-}
-
-function revenueJson(r) {
-  return {
-    id: r.id,
-    user_id: r.user_id,
-    flock_id: r.flock_id,
-    flock_name: r.flocks?.name || null,
-    date: r.date,
-    amount: Math.round(r.amount * 100) / 100,
-    source: r.source,
-    notes: r.notes,
-  };
+function round3(n) {
+  return Math.round((n || 0) * 1000) / 1000;
 }

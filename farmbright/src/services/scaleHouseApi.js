@@ -128,7 +128,7 @@ export async function getQueueSummary() {
     total_feed_used_lbs: Math.round(totalFeedUsed * 100) / 100,
     total_feed_cost: Math.round(totalFeedCost * 100) / 100,
     total_eggs: totalEggs,
-    cost_per_bird: totalHeadcount ? Math.round((totalFeedCost / totalHeadcount) * 1000) / 1000 : 0,
+    cost_per_animal: totalHeadcount ? Math.round((totalFeedCost / totalHeadcount) * 1000) / 1000 : 0,
     casualties,
     all_done: flocks.length > 0 && fedFlockIds.size === flocks.length,
   };
@@ -351,9 +351,9 @@ function feedingEventJson(event) {
     cost_per_lb_at_time: event.cost_per_lb_at_time != null
       ? Math.round(event.cost_per_lb_at_time * 10000) / 10000
       : null,
-    weight_per_bird: Math.round(((event.total_weight || 0) / hc) * 1000) / 1000,
+    weight_per_animal: Math.round(((event.total_weight || 0) / hc) * 1000) / 1000,
     cost_total: Math.round(costTotal * 100) / 100,
-    cost_per_bird: Math.round((costTotal / hc) * 1000) / 1000,
+    cost_per_animal: Math.round((costTotal / hc) * 1000) / 1000,
     input_method: event.input_method,
   };
 }

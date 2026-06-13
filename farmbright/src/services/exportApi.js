@@ -69,7 +69,7 @@ async function fetchFeedingRows(sd, ed, flockIds, limit) {
   const { data, error } = await query;
   if (error) throw fmt(error, "Could not load feeding data for export.");
 
-  const headers = ["Date", "Time", "Flock", "Breed", "Feed", "Weight (lb)", "Wt/Bird", "Cost ($)", "Cost/Bird", "Method"];
+  const headers = ["Date", "Time", "Flock", "Breed", "Feed", "Weight (lb)", "Wt/Animal", "Cost ($)", "Cost/Animal", "Method"];
   const rows = (data || []).map((ev) => {
     const hc = Math.max(ev.flocks?.current_headcount || 1, 1);
     const costTotal = (ev.total_weight || 0) * (ev.cost_per_lb_at_time || 0);
@@ -118,27 +118,22 @@ async function fetchProductionRows(sd, ed, flockIds, limit) {
 }
 
 async function fetchFinancialRows(sd, ed) {
-  const [flocksResult, feedingResult, revenueResult, productionResult] = await Promise.all([
+  const [flocksResult, feedingResult, productionResult] = await Promise.all([
     supabase.from("flocks").select("id, name, designation, current_headcount").order("name"),
     supabase.from("feeding_events").select("flock_id, total_weight, cost_per_lb_at_time").gte("date", sd).lte("date", ed),
-    supabase.from("revenues").select("flock_id, amount").gte("date", sd).lte("date", ed),
     supabase.from("production_logs").select("flock_id, egg_count").gte("date", sd).lte("date", ed),
   ]);
 
   if (flocksResult.error) throw fmt(flocksResult.error, "Could not load financial data for export.");
 
   const feedings = feedingResult.data || [];
-  const revenues = revenueResult.data || [];
   const production = productionResult.data || [];
 
-  const headers = ["Flock", "Designation", "Headcount", "Feed Cost ($)", "Revenue ($)", "Net P&L ($)", "Cost/Bird", "Cost/Dozen"];
+  const headers = ["Flock", "Designation", "Headcount", "Feed Cost ($)", "Cost/Animal", "Cost/Dozen"];
   const rows = (flocksResult.data || []).map((flock) => {
     const feedCost = feedings
       .filter((e) => e.flock_id === flock.id)
       .reduce((s, e) => s + (e.total_weight || 0) * (e.cost_per_lb_at_time || 0), 0);
-    const revenue = revenues
-      .filter((r) => r.flock_id === flock.id)
-      .reduce((s, r) => s + (r.amount || 0), 0);
     const eggs = production
       .filter((p) => p.flock_id === flock.id)
       .reduce((s, p) => s + (p.egg_count || 0), 0);
@@ -148,8 +143,6 @@ async function fetchFinancialRows(sd, ed) {
       flock.designation || "",
       hc,
       round2(feedCost),
-      round2(revenue),
-      round2(revenue - feedCost),
       hc ? round3(feedCost / hc) : 0,
       eggs ? round2((feedCost / eggs) * 12) : "",
     ];
