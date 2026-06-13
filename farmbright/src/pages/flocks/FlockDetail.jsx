@@ -691,7 +691,13 @@ function FlockObservationDateGroup({ date, observations, today, onEdit, onDelete
   const hasConcern = observations.some((obs) => obs.severity === "concern");
 
   return (
-    <section className="rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--bg-surface)]">
+    <section className={`rounded-xl overflow-hidden border border-[var(--border)] border-l-4 bg-[var(--bg-surface)] ${
+      hasUrgent
+        ? "border-l-[var(--accent-danger)]"
+        : hasConcern
+          ? "border-l-[var(--accent-warn)]"
+          : "border-l-transparent"
+    }`}>
       <header className="flex items-center justify-between gap-3 px-4 py-3 bg-[var(--bg-elevated)] border-b border-[var(--border)]">
         <div className="min-w-0">
           <h3 className="display-font text-lg text-[var(--text-primary)] m-0 truncate">
@@ -705,7 +711,7 @@ function FlockObservationDateGroup({ date, observations, today, onEdit, onDelete
           {hasUrgent && (
             <span className="badge badge-xs font-mono bg-[var(--accent-danger)] text-white border-none">Urgent</span>
           )}
-          {!hasUrgent && hasConcern && (
+          {hasConcern && (
             <span className="badge badge-xs font-mono bg-[var(--accent-warn)] text-[var(--bg-base)] border-none">Concern</span>
           )}
           <span className="font-mono text-[10px] text-[var(--text-muted)] whitespace-nowrap">
@@ -740,9 +746,13 @@ function FlockObservationRow({ obs, onEdit, onDelete, onResolve }) {
     obs.severity === "urgent" ? "border-l-[var(--accent-danger)]" :
     obs.severity === "concern" ? "border-l-[var(--accent-warn)]" :
     "border-l-transparent";
+  const bgColor =
+    obs.severity === "urgent" ? "bg-red-950/20" :
+    obs.severity === "concern" ? "bg-amber-950/20" :
+    "";
 
   return (
-    <article className={`px-4 py-3 flex items-start justify-between gap-3 border-l-4 ${borderColor}`}>
+    <article className={`px-4 py-3 flex items-start justify-between gap-3 border-l-4 ${borderColor} ${bgColor}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className="font-mono text-xs font-bold text-[var(--text-primary)] flex items-center gap-1">
@@ -759,7 +769,7 @@ function FlockObservationRow({ obs, onEdit, onDelete, onResolve }) {
                 ? "bg-[var(--accent-danger)] text-white"
                 : "bg-[var(--accent-warn)] text-[var(--bg-base)]"
             }`}>
-              {obs.severity.toUpperCase()}
+              {obs.severity === "urgent" ? "URGENT" : "CONCERN"}
             </span>
           )}
           {obs.follow_up_needed && !obs.follow_up_resolved && (

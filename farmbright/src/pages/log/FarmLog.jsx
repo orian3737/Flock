@@ -268,7 +268,16 @@ export default function FarmLog() {
 
               {/* FLOCK GROUPS */}
               {flocks.map(({ flock, observations }) => (
-                <div key={flock?.id} className="mb-4 rounded-xl overflow-hidden border border-[var(--border)]">
+                <div
+                  key={flock?.id}
+                  className={`mb-4 rounded-xl overflow-hidden border border-[var(--border)] border-l-4 ${
+                    observations.some(o => o.severity === 'urgent')
+                      ? 'border-l-[var(--accent-danger)]'
+                      : observations.some(o => o.severity === 'concern')
+                        ? 'border-l-[var(--accent-warn)]'
+                        : 'border-l-transparent'
+                  }`}
+                >
 
                   {/* Flock header */}
                   <div className="flex items-center justify-between px-4 py-3 bg-[var(--bg-elevated)] border-b border-[var(--border)]">
@@ -281,7 +290,7 @@ export default function FarmLog() {
                       {observations.some(o => o.severity === 'urgent') && (
                         <span className="badge badge-xs font-mono bg-[var(--accent-danger)] text-white border-none">🚨 Urgent</span>
                       )}
-                      {!observations.some(o => o.severity === 'urgent') && observations.some(o => o.severity === 'concern') && (
+                      {observations.some(o => o.severity === 'concern') && (
                         <span className="badge badge-xs font-mono bg-[var(--accent-warn)] text-[var(--bg-base)] border-none">⚠ Concern</span>
                       )}
                       <span className="font-mono text-[10px] text-[var(--text-muted)]">{observations.length} obs</span>
@@ -295,6 +304,10 @@ export default function FarmLog() {
                         obs.severity === 'urgent'  ? 'border-l-[var(--accent-danger)]'
                         : obs.severity === 'concern' ? 'border-l-[var(--accent-warn)]'
                         : 'border-l-transparent'
+                      } ${
+                        obs.severity === 'urgent'  ? 'bg-red-950/20'
+                        : obs.severity === 'concern' ? 'bg-amber-950/20'
+                        : ''
                       }`}>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -305,6 +318,15 @@ export default function FarmLog() {
                             {obs.animals && (
                               <span className="badge badge-xs font-mono bg-[var(--accent-primary)] text-[var(--bg-base)] border-none">
                                 🐾 {obs.animals.identifier}
+                              </span>
+                            )}
+                            {obs.severity !== 'normal' && (
+                              <span className={`badge badge-xs font-mono border-none font-bold ${
+                                obs.severity === 'urgent'
+                                  ? 'bg-[var(--accent-danger)] text-white'
+                                  : 'bg-[var(--accent-warn)] text-[var(--bg-base)]'
+                              }`}>
+                                {obs.severity === 'urgent' ? '🚨 URGENT' : '⚠ CONCERN'}
                               </span>
                             )}
                             {obs.follow_up_needed && !obs.follow_up_resolved && !resolvedIds.has(obs.id) && (
